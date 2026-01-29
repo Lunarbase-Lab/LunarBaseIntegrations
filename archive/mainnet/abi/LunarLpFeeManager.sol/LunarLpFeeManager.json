@@ -1,0 +1,198 @@
+[
+  {
+    "type": "function",
+    "name": "ACC_SCALE",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "accountState",
+    "inputs": [
+      { "name": "", "type": "address", "internalType": "address" },
+      { "name": "", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "fee0Debt", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1Debt", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee0Accrued", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1Accrued", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "claim",
+    "inputs": [
+      { "name": "pool", "type": "address", "internalType": "address" },
+      { "name": "to", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "fee0", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "onBalanceChange",
+    "inputs": [
+      { "name": "pool", "type": "address", "internalType": "address" },
+      { "name": "account", "type": "address", "internalType": "address" },
+      { "name": "oldBalance", "type": "uint256", "internalType": "uint256" },
+      { "name": "newBalance", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "onFeesAccrued",
+    "inputs": [
+      { "name": "pool", "type": "address", "internalType": "address" },
+      { "name": "fee0", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1", "type": "uint256", "internalType": "uint256" },
+      { "name": "lpSupply", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "poolState",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [
+      {
+        "name": "accFee0PerShare",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "accFee1PerShare",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "preview",
+    "inputs": [
+      { "name": "pool", "type": "address", "internalType": "address" },
+      { "name": "account", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "fee0", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "AccountUpdated",
+    "inputs": [
+      {
+        "name": "pool",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "oldBalance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newBalance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeesAccrued",
+    "inputs": [
+      {
+        "name": "pool",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "fee0",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee1",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeesClaimed",
+    "inputs": [
+      {
+        "name": "pool",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "fee0",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee1",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "LunarLpFeeManager__AmountTooLarge",
+    "inputs": []
+  },
+  { "type": "error", "name": "LunarLpFeeManager__NotPool", "inputs": [] },
+  {
+    "type": "error",
+    "name": "LunarLpFeeManager__NothingToClaim",
+    "inputs": []
+  },
+  { "type": "error", "name": "LunarLpFeeManager__ZeroAddress", "inputs": [] },
+  { "type": "error", "name": "ReentrancyGuardReentrantCall", "inputs": [] }
+]

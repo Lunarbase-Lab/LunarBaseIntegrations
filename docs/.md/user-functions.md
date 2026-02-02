@@ -7,8 +7,8 @@ Each entry includes parameters, meaning, and return values, plus access notes.
 ## Shared types
 
 **`BaseFeeConfig`**
-- `baseFee` (uint24): total fee in bps (10_000 = 100%).
-- `wToken0` (uint24): weight of fee charged in token0 (bps; sum with wToken1 must be 10_000).
+- `baseFee` (uint24): total fee in bps (1_000_000_000 = 100%).
+- `wToken0` (uint24): weight of fee charged in token0 (bps; sum with wToken1 must be 1_000_000_000).
 - `wToken1` (uint24): weight of fee charged in token1 (bps).
 
 **`CreatePairParams`**

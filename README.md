@@ -137,7 +137,7 @@ Optional registry used by the factory:
 
 `BaseFeeConfig { baseFee, wToken0, wToken1 }`
 
-- Weights must sum to 10,000 bps.
+- Weights must sum to 1,000,000,000 bps.
 - Non-partners can only use preset configs.
 - Partners can use arbitrary configs (up to 100%).
 

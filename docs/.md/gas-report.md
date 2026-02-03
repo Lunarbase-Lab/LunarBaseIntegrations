@@ -44,3 +44,8 @@ Bench setup:
 - `router.swapExactTokensForTokens.user` was executed from `alice` (not owner).
 - Swap metrics are measured on pools after liquidity is added.
 - Values depend on the current Foundry/solc settings and may differ under other configurations.
+
+
+## Native Paths
+
+- Gas numbers are for ERC20 paths. Native paths include extra wrap/unwrap and refund overhead.

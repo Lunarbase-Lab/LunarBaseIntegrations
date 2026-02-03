@@ -19,3 +19,9 @@ This registry constrains which swap flags a pool can accept from core/user modul
 
 - If no registry is set in the factory, no additional constraints are applied.
 - Common use: restrict `LUNAR_SWAP_OVERRIDE_IN`/`LUNAR_SWAP_OVERRIDE_OUT` to vetted modules only.
+
+
+## Core Bit (moduleMask = 1)
+
+- Core module is mandatory; its bit is `1` in `moduleMask`.
+- If `moduleMask` does not include core, pool creation must revert.

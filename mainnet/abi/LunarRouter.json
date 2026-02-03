@@ -200,22 +200,14 @@
     "type": "error",
     "name": "NoSelectorsProvidedForFacetForCut",
     "inputs": [
-      {
-        "name": "_facetAddress",
-        "type": "address",
-        "internalType": "address"
-      }
+      { "name": "_facetAddress", "type": "address", "internalType": "address" }
     ]
   },
   {
     "type": "error",
     "name": "RemoveFacetAddressMustBeZeroAddress",
     "inputs": [
-      {
-        "name": "_facetAddress",
-        "type": "address",
-        "internalType": "address"
-      }
+      { "name": "_facetAddress", "type": "address", "internalType": "address" }
     ]
   }
 ]

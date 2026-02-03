@@ -27,9 +27,9 @@
         "type": "tuple",
         "internalType": "struct BaseFeeConfig",
         "components": [
-          { "name": "baseFee", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken0", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken1", "type": "uint24", "internalType": "uint24" }
+          { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
         ]
       }
     ],
@@ -58,9 +58,9 @@
         "type": "tuple",
         "internalType": "struct BaseFeeConfig",
         "components": [
-          { "name": "baseFee", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken0", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken1", "type": "uint24", "internalType": "uint24" }
+          { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
         ]
       }
     ],
@@ -82,9 +82,9 @@
         "type": "tuple",
         "internalType": "struct BaseFeeConfig",
         "components": [
-          { "name": "baseFee", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken0", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken1", "type": "uint24", "internalType": "uint24" }
+          { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
         ]
       }
     ],
@@ -298,9 +298,9 @@
         "indexed": false,
         "internalType": "struct BaseFeeConfig",
         "components": [
-          { "name": "baseFee", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken0", "type": "uint24", "internalType": "uint24" },
-          { "name": "wToken1", "type": "uint24", "internalType": "uint24" }
+          { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+          { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
         ]
       }
     ],
@@ -344,21 +344,13 @@
     "inputs": []
   },
   { "type": "error", "name": "LunarFactory__IdenticalTokens", "inputs": [] },
-  {
-    "type": "error",
-    "name": "LunarFactory__InvalidModuleMask",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarFactory__InvalidModuleMask", "inputs": [] },
   {
     "type": "error",
     "name": "LunarFactory__ModulePermissionsMissing",
     "inputs": []
   },
-  {
-    "type": "error",
-    "name": "LunarFactory__NotLockerOperator",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarFactory__NotLockerOperator", "inputs": [] },
   { "type": "error", "name": "LunarFactory__NotOwner", "inputs": [] },
   { "type": "error", "name": "LunarFactory__PairCreateFailed", "inputs": [] },
   { "type": "error", "name": "LunarFactory__PairExists", "inputs": [] },
@@ -369,10 +361,6 @@
   },
   { "type": "error", "name": "LunarFactory__ZeroCoreModule", "inputs": [] },
   { "type": "error", "name": "LunarFactory__ZeroLocker", "inputs": [] },
-  {
-    "type": "error",
-    "name": "LunarFactory__ZeroLockerOperator",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarFactory__ZeroLockerOperator", "inputs": [] },
   { "type": "error", "name": "LunarFactory__ZeroOwner", "inputs": [] }
 ]

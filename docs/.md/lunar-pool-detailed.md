@@ -351,3 +351,12 @@ Router.swap* -> Pool.swap
 ```
 
 ---
+
+
+---
+
+## Native Currency (Currency = address(0))
+
+- `Currency` represents native with `address(0)`.
+- Pool logic is currency-agnostic; Router is responsible for wrapping/unwrapping.
+- Pool balances always reflect actual ERC20/native balances.

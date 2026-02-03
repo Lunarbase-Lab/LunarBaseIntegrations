@@ -233,26 +233,10 @@
         "internalType": "struct LunarSwapContext",
         "components": [
           { "name": "tokenIn", "type": "address", "internalType": "address" },
-          {
-            "name": "tokenOut",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "amountIn",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "amountOut",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "reserveIn",
-            "type": "uint112",
-            "internalType": "uint112"
-          },
+          { "name": "tokenOut", "type": "address", "internalType": "address" },
+          { "name": "amountIn", "type": "uint256", "internalType": "uint256" },
+          { "name": "amountOut", "type": "uint256", "internalType": "uint256" },
+          { "name": "reserveIn", "type": "uint112", "internalType": "uint112" },
           {
             "name": "reserveOut",
             "type": "uint112",
@@ -628,6 +612,43 @@
   },
   {
     "type": "event",
+    "name": "DynamicFeeUpdated",
+    "inputs": [
+      {
+        "name": "pair",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "dynBps",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "activity",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "lastUpdate",
+        "type": "uint40",
+        "indexed": false,
+        "internalType": "uint40"
+      },
+      {
+        "name": "pulse",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "FactorySet",
     "inputs": [
       {
@@ -783,11 +804,7 @@
     "name": "LunarCoreModule__BaseFeeNotAllowed",
     "inputs": []
   },
-  {
-    "type": "error",
-    "name": "LunarCoreModule__BaseFeeTooHigh",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarCoreModule__BaseFeeTooHigh", "inputs": [] },
   {
     "type": "error",
     "name": "LunarCoreModule__ChameleonDisabled",
@@ -813,11 +830,7 @@
   },
   { "type": "error", "name": "LunarCoreModule__TokenMismatch", "inputs": [] },
   { "type": "error", "name": "LunarCoreModule__UnknownPool", "inputs": [] },
-  {
-    "type": "error",
-    "name": "LunarCoreModule__VaultNotAllowed",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarCoreModule__VaultNotAllowed", "inputs": [] },
   { "type": "error", "name": "LunarCoreModule__ZeroAddress", "inputs": [] },
   {
     "type": "error",

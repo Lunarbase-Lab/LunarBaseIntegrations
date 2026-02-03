@@ -287,3 +287,17 @@ Admin / operator functions:
 **`quote(params) → (amountIn, amountOut, amounts[])`**
 - Convenience entry that routes to exact‑input or exact‑output based on params.
 
+
+
+## Slippage / maxHopSlippage Units
+
+- `amountAMin`, `amountBMin`, `amountOutMinimum`, `amountInMaximum` are **absolute token amounts**.
+- `maxHopSlippage[i]` is **max price** for hop `i`, defined as:
+  - `price = amountIn / amountOut` scaled by `1e18`.
+  - `maxHopSlippage[i]` is compared against `price` (so smaller = stricter).
+
+## Native Currency Notes
+
+- Use `address(0)` in params for native currency.
+- Router handles wrapping/unwrapping only at the path edges.
+- For multi-hop, native cannot appear in the middle hop.

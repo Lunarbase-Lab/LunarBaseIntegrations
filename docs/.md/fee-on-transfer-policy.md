@@ -21,3 +21,9 @@ Exact-output quotes would be misleading and can fail to meet the output target.
 - Use `FeeOnTransferModule` on FoT pairs to compute output from the **observed**
   input at the pool.
 - Router/Quoter should avoid exact-output paths for FoT pairs in UI/SDK.
+
+
+## Router/Quoter Notes
+
+- Exact-output with FoT tokens is unsupported because inputs are unknown before transfer.
+- Use exact-input and set conservative `amountOutMinimum`.

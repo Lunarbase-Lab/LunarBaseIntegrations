@@ -726,3 +726,42 @@ Router.addLiquidityAndLock
 ```
 
 ---
+
+---
+
+## 11. Native Currency Handling (Address(0))
+
+- `Currency` uses `address(0)` to represent native currency.
+- Pools can be created with `tokenA == address(0)` or `tokenB == address(0)`.
+- The router handles native input/output by wrapping/unwrapping at the edges only.
+- For multi-hop:
+  - Native is allowed only at the start (input) or at the end (output).
+  - Intermediate hops must be ERC20.
+- Router refunds any excess `msg.value` on addLiquidity and swap paths.
+
+## 12. ModuleMask and Permissions (Practical)
+
+- `moduleMask` is a bitmask of enabled module categories.
+- Bit 0 (value `1`) is reserved for **core module**; it must always be set.
+- User modules can be enabled for SWAP/LIQUIDITY/ACCESS/INITIALIZE depending on pool needs.
+- `PermissionsRegistry` enforces which swap flags are allowed for core/user modules per pool.
+
+## 13. Upgradeability (Core Module)
+
+- `LunarCoreModule` is UUPS-upgradeable.
+- Upgrade flow:
+  1. Deploy new implementation.
+  2. Call `upgradeTo` on the proxy via the upgrade script.
+- Only the core owner can authorize upgrades.
+
+## 14. LP Fees: Pool vs Fee Manager
+
+- The pool accrues LP fees in `fees0/fees1` buckets.
+- The **fee manager** performs non-diluted per-account accounting and allows `claim()`.
+- `LunarPool.collectFees` is **fee-manager-only** and moves fees from pool buckets to users.
+
+## 15. Liquidity Locker Beneficiary Semantics
+
+- Lock beneficiary controls fee claims while lock is active.
+- Changing beneficiary pays out accrued fees to the previous beneficiary first.
+- Unlock returns control to the owner; future fees accrue to the owner again.

@@ -56,21 +56,9 @@
             "type": "tuple",
             "internalType": "struct BaseFeeConfig",
             "components": [
-              {
-                "name": "baseFee",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken0",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken1",
-                "type": "uint32",
-                "internalType": "uint32"
-              }
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
             ]
           },
           { "name": "to", "type": "address", "internalType": "address" }
@@ -86,11 +74,7 @@
             "type": "tuple",
             "internalType": "struct IAllowanceTransfer.PermitDetails",
             "components": [
-              {
-                "name": "token",
-                "type": "address",
-                "internalType": "address"
-              },
+              { "name": "token", "type": "address", "internalType": "address" },
               {
                 "name": "amount",
                 "type": "uint160",
@@ -123,11 +107,7 @@
             "type": "tuple",
             "internalType": "struct IAllowanceTransfer.PermitDetails",
             "components": [
-              {
-                "name": "token",
-                "type": "address",
-                "internalType": "address"
-              },
+              { "name": "token", "type": "address", "internalType": "address" },
               {
                 "name": "amount",
                 "type": "uint160",
@@ -169,11 +149,7 @@
         "components": [
           { "name": "tokenA", "type": "address", "internalType": "address" },
           { "name": "tokenB", "type": "address", "internalType": "address" },
-          {
-            "name": "liquidity",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
+          { "name": "liquidity", "type": "uint256", "internalType": "uint256" },
           {
             "name": "amountAMin",
             "type": "uint256",
@@ -196,21 +172,9 @@
             "type": "tuple",
             "internalType": "struct BaseFeeConfig",
             "components": [
-              {
-                "name": "baseFee",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken0",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken1",
-                "type": "uint32",
-                "internalType": "uint32"
-              }
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
             ]
           }
         ]
@@ -225,11 +189,7 @@
             "type": "tuple",
             "internalType": "struct IAllowanceTransfer.PermitDetails",
             "components": [
-              {
-                "name": "token",
-                "type": "address",
-                "internalType": "address"
-              },
+              { "name": "token", "type": "address", "internalType": "address" },
               {
                 "name": "amount",
                 "type": "uint160",
@@ -269,16 +229,8 @@
         "internalType": "struct SwapExactParams",
         "components": [
           { "name": "tokenIn", "type": "address", "internalType": "address" },
-          {
-            "name": "tokenOut",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "amountIn",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
+          { "name": "tokenOut", "type": "address", "internalType": "address" },
+          { "name": "amountIn", "type": "uint256", "internalType": "uint256" },
           {
             "name": "amountOutMin",
             "type": "uint256",
@@ -296,21 +248,9 @@
             "type": "tuple",
             "internalType": "struct BaseFeeConfig",
             "components": [
-              {
-                "name": "baseFee",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken0",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken1",
-                "type": "uint32",
-                "internalType": "uint32"
-              }
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
             ]
           },
           { "name": "data", "type": "bytes", "internalType": "bytes" }
@@ -326,11 +266,7 @@
             "type": "tuple",
             "internalType": "struct IAllowanceTransfer.PermitDetails",
             "components": [
-              {
-                "name": "token",
-                "type": "address",
-                "internalType": "address"
-              },
+              { "name": "token", "type": "address", "internalType": "address" },
               {
                 "name": "amount",
                 "type": "uint160",
@@ -401,31 +337,15 @@
             "type": "tuple",
             "internalType": "struct BaseFeeConfig",
             "components": [
-              {
-                "name": "baseFee",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken0",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken1",
-                "type": "uint32",
-                "internalType": "uint32"
-              }
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
             ]
           },
           { "name": "to", "type": "address", "internalType": "address" }
         ]
       },
-      {
-        "name": "permitValueA",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
+      { "name": "permitValueA", "type": "uint256", "internalType": "uint256" },
       {
         "name": "permitDeadlineA",
         "type": "uint256",
@@ -434,11 +354,7 @@
       { "name": "vA", "type": "uint8", "internalType": "uint8" },
       { "name": "rA", "type": "bytes32", "internalType": "bytes32" },
       { "name": "sA", "type": "bytes32", "internalType": "bytes32" },
-      {
-        "name": "permitValueB",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
+      { "name": "permitValueB", "type": "uint256", "internalType": "uint256" },
       {
         "name": "permitDeadlineB",
         "type": "uint256",
@@ -466,11 +382,7 @@
         "components": [
           { "name": "tokenA", "type": "address", "internalType": "address" },
           { "name": "tokenB", "type": "address", "internalType": "address" },
-          {
-            "name": "liquidity",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
+          { "name": "liquidity", "type": "uint256", "internalType": "uint256" },
           {
             "name": "amountAMin",
             "type": "uint256",
@@ -493,21 +405,9 @@
             "type": "tuple",
             "internalType": "struct BaseFeeConfig",
             "components": [
-              {
-                "name": "baseFee",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken0",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken1",
-                "type": "uint32",
-                "internalType": "uint32"
-              }
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
             ]
           }
         ]
@@ -538,16 +438,8 @@
         "internalType": "struct SwapExactParams",
         "components": [
           { "name": "tokenIn", "type": "address", "internalType": "address" },
-          {
-            "name": "tokenOut",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "amountIn",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
+          { "name": "tokenOut", "type": "address", "internalType": "address" },
+          { "name": "amountIn", "type": "uint256", "internalType": "uint256" },
           {
             "name": "amountOutMin",
             "type": "uint256",
@@ -565,21 +457,9 @@
             "type": "tuple",
             "internalType": "struct BaseFeeConfig",
             "components": [
-              {
-                "name": "baseFee",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken0",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
-              {
-                "name": "wToken1",
-                "type": "uint32",
-                "internalType": "uint32"
-              }
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
             ]
           },
           { "name": "data", "type": "bytes", "internalType": "bytes" }
@@ -617,11 +497,7 @@
     ]
   },
   { "type": "error", "name": "LunarRouter__EmptyReserves", "inputs": [] },
-  {
-    "type": "error",
-    "name": "LunarRouter__InvalidNativeValue",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarRouter__InvalidNativeValue", "inputs": [] },
   { "type": "error", "name": "LunarRouter__PairNotFound", "inputs": [] },
   { "type": "error", "name": "LunarRouter__Slippage", "inputs": [] },
   { "type": "error", "name": "LunarRouter__SwapPermissions", "inputs": [] },

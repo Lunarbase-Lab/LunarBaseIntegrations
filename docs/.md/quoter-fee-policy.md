@@ -23,3 +23,10 @@ add extra fees for wrapper tokens or special behaviors.
 
 - User modules **cannot** reduce core fees.
 - If a user module does not override fee, only core fee is used.
+
+
+## Protocol Share
+
+- `protocolShareBps` is taken from the **sum** of core + user fee quotes.
+- The protocol share uses **max(core, user)** to avoid under-reporting.
+- Protocol fees are paid out immediately to `protocolTreasury` on swap.

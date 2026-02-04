@@ -1,0 +1,506 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      { "name": "factory_", "type": "address", "internalType": "address" },
+      { "name": "permit2_", "type": "address", "internalType": "address" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "permit2",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "permit2AddLiquidity",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct AddLiquidityParams",
+        "components": [
+          { "name": "tokenA", "type": "address", "internalType": "address" },
+          { "name": "tokenB", "type": "address", "internalType": "address" },
+          {
+            "name": "amountADesired",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountBDesired",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountAMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountBMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "userModule",
+            "type": "address",
+            "internalType": "address"
+          },
+          { "name": "moduleMask", "type": "uint8", "internalType": "uint8" },
+          {
+            "name": "baseFeeConfig",
+            "type": "tuple",
+            "internalType": "struct BaseFeeConfig",
+            "components": [
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
+            ]
+          },
+          { "name": "to", "type": "address", "internalType": "address" }
+        ]
+      },
+      {
+        "name": "permitA",
+        "type": "tuple",
+        "internalType": "struct IAllowanceTransfer.PermitSingle",
+        "components": [
+          {
+            "name": "details",
+            "type": "tuple",
+            "internalType": "struct IAllowanceTransfer.PermitDetails",
+            "components": [
+              { "name": "token", "type": "address", "internalType": "address" },
+              {
+                "name": "amount",
+                "type": "uint160",
+                "internalType": "uint160"
+              },
+              {
+                "name": "expiration",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              { "name": "nonce", "type": "uint48", "internalType": "uint48" }
+            ]
+          },
+          { "name": "spender", "type": "address", "internalType": "address" },
+          {
+            "name": "sigDeadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      { "name": "sigA", "type": "bytes", "internalType": "bytes" },
+      {
+        "name": "permitB",
+        "type": "tuple",
+        "internalType": "struct IAllowanceTransfer.PermitSingle",
+        "components": [
+          {
+            "name": "details",
+            "type": "tuple",
+            "internalType": "struct IAllowanceTransfer.PermitDetails",
+            "components": [
+              { "name": "token", "type": "address", "internalType": "address" },
+              {
+                "name": "amount",
+                "type": "uint160",
+                "internalType": "uint160"
+              },
+              {
+                "name": "expiration",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              { "name": "nonce", "type": "uint48", "internalType": "uint48" }
+            ]
+          },
+          { "name": "spender", "type": "address", "internalType": "address" },
+          {
+            "name": "sigDeadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      { "name": "sigB", "type": "bytes", "internalType": "bytes" }
+    ],
+    "outputs": [
+      { "name": "amountA", "type": "uint256", "internalType": "uint256" },
+      { "name": "amountB", "type": "uint256", "internalType": "uint256" },
+      { "name": "liquidity", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "permit2RemoveLiquidity",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct RemoveLiquidityParams",
+        "components": [
+          { "name": "tokenA", "type": "address", "internalType": "address" },
+          { "name": "tokenB", "type": "address", "internalType": "address" },
+          { "name": "liquidity", "type": "uint256", "internalType": "uint256" },
+          {
+            "name": "amountAMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountBMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "to", "type": "address", "internalType": "address" },
+          {
+            "name": "userModule",
+            "type": "address",
+            "internalType": "address"
+          },
+          { "name": "moduleMask", "type": "uint8", "internalType": "uint8" },
+          {
+            "name": "baseFeeConfig",
+            "type": "tuple",
+            "internalType": "struct BaseFeeConfig",
+            "components": [
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "permitSingle",
+        "type": "tuple",
+        "internalType": "struct IAllowanceTransfer.PermitSingle",
+        "components": [
+          {
+            "name": "details",
+            "type": "tuple",
+            "internalType": "struct IAllowanceTransfer.PermitDetails",
+            "components": [
+              { "name": "token", "type": "address", "internalType": "address" },
+              {
+                "name": "amount",
+                "type": "uint160",
+                "internalType": "uint160"
+              },
+              {
+                "name": "expiration",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              { "name": "nonce", "type": "uint48", "internalType": "uint48" }
+            ]
+          },
+          { "name": "spender", "type": "address", "internalType": "address" },
+          {
+            "name": "sigDeadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      { "name": "signature", "type": "bytes", "internalType": "bytes" }
+    ],
+    "outputs": [
+      { "name": "amountA", "type": "uint256", "internalType": "uint256" },
+      { "name": "amountB", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "permit2SwapExactTokensForTokens",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct SwapExactParams",
+        "components": [
+          { "name": "tokenIn", "type": "address", "internalType": "address" },
+          { "name": "tokenOut", "type": "address", "internalType": "address" },
+          { "name": "amountIn", "type": "uint256", "internalType": "uint256" },
+          {
+            "name": "amountOutMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "to", "type": "address", "internalType": "address" },
+          {
+            "name": "userModule",
+            "type": "address",
+            "internalType": "address"
+          },
+          { "name": "moduleMask", "type": "uint8", "internalType": "uint8" },
+          {
+            "name": "baseFeeConfig",
+            "type": "tuple",
+            "internalType": "struct BaseFeeConfig",
+            "components": [
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
+            ]
+          },
+          { "name": "data", "type": "bytes", "internalType": "bytes" }
+        ]
+      },
+      {
+        "name": "permitSingle",
+        "type": "tuple",
+        "internalType": "struct IAllowanceTransfer.PermitSingle",
+        "components": [
+          {
+            "name": "details",
+            "type": "tuple",
+            "internalType": "struct IAllowanceTransfer.PermitDetails",
+            "components": [
+              { "name": "token", "type": "address", "internalType": "address" },
+              {
+                "name": "amount",
+                "type": "uint160",
+                "internalType": "uint160"
+              },
+              {
+                "name": "expiration",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              { "name": "nonce", "type": "uint48", "internalType": "uint48" }
+            ]
+          },
+          { "name": "spender", "type": "address", "internalType": "address" },
+          {
+            "name": "sigDeadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      { "name": "signature", "type": "bytes", "internalType": "bytes" }
+    ],
+    "outputs": [
+      { "name": "amountOut", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "permitAndAddLiquidity",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct AddLiquidityParams",
+        "components": [
+          { "name": "tokenA", "type": "address", "internalType": "address" },
+          { "name": "tokenB", "type": "address", "internalType": "address" },
+          {
+            "name": "amountADesired",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountBDesired",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountAMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountBMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "userModule",
+            "type": "address",
+            "internalType": "address"
+          },
+          { "name": "moduleMask", "type": "uint8", "internalType": "uint8" },
+          {
+            "name": "baseFeeConfig",
+            "type": "tuple",
+            "internalType": "struct BaseFeeConfig",
+            "components": [
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
+            ]
+          },
+          { "name": "to", "type": "address", "internalType": "address" }
+        ]
+      },
+      { "name": "permitValueA", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "permitDeadlineA",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      { "name": "vA", "type": "uint8", "internalType": "uint8" },
+      { "name": "rA", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "sA", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "permitValueB", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "permitDeadlineB",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      { "name": "vB", "type": "uint8", "internalType": "uint8" },
+      { "name": "rB", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "sB", "type": "bytes32", "internalType": "bytes32" }
+    ],
+    "outputs": [
+      { "name": "amountA", "type": "uint256", "internalType": "uint256" },
+      { "name": "amountB", "type": "uint256", "internalType": "uint256" },
+      { "name": "liquidity", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "permitAndRemoveLiquidity",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct RemoveLiquidityParams",
+        "components": [
+          { "name": "tokenA", "type": "address", "internalType": "address" },
+          { "name": "tokenB", "type": "address", "internalType": "address" },
+          { "name": "liquidity", "type": "uint256", "internalType": "uint256" },
+          {
+            "name": "amountAMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountBMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "to", "type": "address", "internalType": "address" },
+          {
+            "name": "userModule",
+            "type": "address",
+            "internalType": "address"
+          },
+          { "name": "moduleMask", "type": "uint8", "internalType": "uint8" },
+          {
+            "name": "baseFeeConfig",
+            "type": "tuple",
+            "internalType": "struct BaseFeeConfig",
+            "components": [
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
+            ]
+          }
+        ]
+      },
+      { "name": "permitValue", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "permitDeadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      { "name": "v", "type": "uint8", "internalType": "uint8" },
+      { "name": "r", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "s", "type": "bytes32", "internalType": "bytes32" }
+    ],
+    "outputs": [
+      { "name": "amountA", "type": "uint256", "internalType": "uint256" },
+      { "name": "amountB", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "permitAndSwapExactTokensForTokens",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct SwapExactParams",
+        "components": [
+          { "name": "tokenIn", "type": "address", "internalType": "address" },
+          { "name": "tokenOut", "type": "address", "internalType": "address" },
+          { "name": "amountIn", "type": "uint256", "internalType": "uint256" },
+          {
+            "name": "amountOutMin",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "to", "type": "address", "internalType": "address" },
+          {
+            "name": "userModule",
+            "type": "address",
+            "internalType": "address"
+          },
+          { "name": "moduleMask", "type": "uint8", "internalType": "uint8" },
+          {
+            "name": "baseFeeConfig",
+            "type": "tuple",
+            "internalType": "struct BaseFeeConfig",
+            "components": [
+              { "name": "baseFee", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken0", "type": "uint32", "internalType": "uint32" },
+              { "name": "wToken1", "type": "uint32", "internalType": "uint32" }
+            ]
+          },
+          { "name": "data", "type": "bytes", "internalType": "bytes" }
+        ]
+      },
+      { "name": "permitValue", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "permitDeadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      { "name": "v", "type": "uint8", "internalType": "uint8" },
+      { "name": "r", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "s", "type": "bytes32", "internalType": "bytes32" }
+    ],
+    "outputs": [
+      { "name": "amountOut", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "selectors",
+    "inputs": [],
+    "outputs": [
+      { "name": "s", "type": "bytes4[]", "internalType": "bytes4[]" }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "error",
+    "name": "LunarMsgSender__AlreadySet",
+    "inputs": [
+      { "name": "current", "type": "address", "internalType": "address" }
+    ]
+  },
+  { "type": "error", "name": "LunarRouter__EmptyReserves", "inputs": [] },
+  { "type": "error", "name": "LunarRouter__InvalidNativeValue", "inputs": [] },
+  { "type": "error", "name": "LunarRouter__PairNotFound", "inputs": [] },
+  { "type": "error", "name": "LunarRouter__Slippage", "inputs": [] },
+  { "type": "error", "name": "LunarRouter__SwapPermissions", "inputs": [] },
+  { "type": "error", "name": "LunarRouter__TransferFailed", "inputs": [] },
+  { "type": "error", "name": "ReentrancyGuardReentrantCall", "inputs": [] }
+]

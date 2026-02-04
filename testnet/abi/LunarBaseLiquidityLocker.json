@@ -1,0 +1,452 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      { "name": "owner_", "type": "address", "internalType": "address" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "ACC_SCALE",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "accFee0PerShare",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "accFee1PerShare",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "claimFees",
+    "inputs": [
+      { "name": "id", "type": "uint256", "internalType": "uint256" },
+      { "name": "to", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "fee0", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimFeesFor",
+    "inputs": [
+      { "name": "id", "type": "uint256", "internalType": "uint256" },
+      { "name": "beneficiary_", "type": "address", "internalType": "address" },
+      { "name": "to", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "fee0", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "isOperator",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lock",
+    "inputs": [
+      { "name": "token", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "unlockTime", "type": "uint64", "internalType": "uint64" },
+      { "name": "permanent", "type": "bool", "internalType": "bool" },
+      { "name": "beneficiary", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [{ "name": "id", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "lockFor",
+    "inputs": [
+      { "name": "owner_", "type": "address", "internalType": "address" },
+      { "name": "token", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "unlockTime", "type": "uint64", "internalType": "uint64" },
+      { "name": "permanent", "type": "bool", "internalType": "bool" },
+      { "name": "beneficiary", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [{ "name": "id", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "locks",
+    "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      { "name": "token", "type": "address", "internalType": "address" },
+      { "name": "owner", "type": "address", "internalType": "address" },
+      { "name": "beneficiary", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint128", "internalType": "uint128" },
+      { "name": "unlockTime", "type": "uint64", "internalType": "uint64" },
+      { "name": "permanent", "type": "bool", "internalType": "bool" },
+      { "name": "withdrawn", "type": "bool", "internalType": "bool" },
+      { "name": "fee0Debt", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1Debt", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee0Accrued", "type": "uint256", "internalType": "uint256" },
+      { "name": "fee1Accrued", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "nextId",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "poolToken0",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "poolToken1",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerLock",
+    "inputs": [
+      { "name": "owner_", "type": "address", "internalType": "address" },
+      { "name": "token", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "unlockTime", "type": "uint64", "internalType": "uint64" },
+      { "name": "permanent", "type": "bool", "internalType": "bool" },
+      { "name": "beneficiary", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [{ "name": "id", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setBeneficiary",
+    "inputs": [
+      { "name": "id", "type": "uint256", "internalType": "uint256" },
+      { "name": "newBeneficiary", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setBeneficiaryFor",
+    "inputs": [
+      { "name": "id", "type": "uint256", "internalType": "uint256" },
+      { "name": "owner_", "type": "address", "internalType": "address" },
+      { "name": "newBeneficiary", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setOperator",
+    "inputs": [
+      { "name": "operator", "type": "address", "internalType": "address" },
+      { "name": "allowed", "type": "bool", "internalType": "bool" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "totalLocked",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
+    "inputs": [
+      { "name": "id", "type": "uint256", "internalType": "uint256" },
+      { "name": "to", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawFor",
+    "inputs": [
+      { "name": "id", "type": "uint256", "internalType": "uint256" },
+      { "name": "owner_", "type": "address", "internalType": "address" },
+      { "name": "to", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "BeneficiarySet",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeesClaimed",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "fee0",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee1",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeesCollected",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "fee0",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee1",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Locked",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "unlockTime",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "permanent",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OperatorSet",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Withdrawn",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__BadUnlock",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__InsufficientBalance",
+    "inputs": []
+  },
+  { "type": "error", "name": "LunarBaseLiquidityLocker__Locked", "inputs": [] },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__NotBeneficiary",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__NotOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__NothingToClaim",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__Permanent",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__TransferFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__Unauthorized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__Withdrawn",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__ZeroAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__ZeroBeneficiary",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__ZeroOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LunarBaseLiquidityLocker__ZeroToken",
+    "inputs": []
+  },
+  { "type": "error", "name": "ReentrancyGuardReentrantCall", "inputs": [] }
+]

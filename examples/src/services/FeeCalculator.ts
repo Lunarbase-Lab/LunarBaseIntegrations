@@ -126,6 +126,107 @@ export class FeeCalculator {
   }
 
   /**
+   * Gets the current dynamic fee from on-chain state using previewFee with zero amount.
+   * This is the most accurate method to get the current dynBps.
+   *
+   * @param poolAddress - Pool address
+   * @param token0 - Token0 address
+   * @param token1 - Token1 address  
+   * @param reserve0 - Reserve of token0
+   * @param reserve1 - Reserve of token1
+   * @param isToken0In - Direction of swap (default: false, meaning token1 -> token0)
+   * @returns Current dynamic fee in bps
+   */
+  async getCurrentDynBpsOnChain(
+    poolAddress: Address,
+    token0: Address,
+    token1: Address,
+    reserve0: bigint,
+    reserve1: bigint,
+    isToken0In = false
+  ): Promise<number> {
+    const baseFeeConfig = await this.getBaseFeeConfig(poolAddress);
+
+    // Call previewFee with amountIn=0 to get current fee without adding pulse
+    const context: SwapContext = {
+      tokenIn: isToken0In ? token0 : token1,
+      tokenOut: isToken0In ? token1 : token0,
+      amountIn: 0n,
+      amountOut: 0n,
+      reserveIn: isToken0In ? reserve0 : reserve1,
+      reserveOut: isToken0In ? reserve1 : reserve0,
+    };
+
+    const feeQuote = await this.previewFee(poolAddress, context);
+
+    // Reverse-engineer dynBps from inBps
+    // inBps = (baseFee + dynBps) * weight / BPS_DEN
+    const weight = BigInt(isToken0In ? baseFeeConfig.wToken0 : baseFeeConfig.wToken1);
+    
+    if (weight === 0n) {
+      return 0;
+    }
+
+    const expectedBaseInBps = (BigInt(baseFeeConfig.baseFee) * weight) / BigInt(FEE_CONSTANTS.BPS_DENOMINATOR);
+    const dynBpsContribution = BigInt(feeQuote.inBps) - expectedBaseInBps;
+
+    if (dynBpsContribution <= 0n) {
+      return 0;
+    }
+
+    // Reverse: dynBps = dynBpsContribution * BPS_DEN / weight
+    const currentDynBps = (dynBpsContribution * BigInt(FEE_CONSTANTS.BPS_DENOMINATOR)) / weight;
+    
+    return Number(currentDynBps);
+  }
+
+  /**
+   * Gets complete fee information including on-chain dynamic fee.
+   * This combines base fee config with current dynamic fee from contract state.
+   *
+   * @param poolAddress - Pool address
+   * @param token0 - Token0 address
+   * @param token1 - Token1 address
+   * @param reserve0 - Reserve of token0
+   * @param reserve1 - Reserve of token1
+   * @param isToken0In - Direction of swap
+   * @returns Complete fee breakdown with accurate dynBps
+   */
+  async getPoolFeesOnChain(
+    poolAddress: Address,
+    token0: Address,
+    token1: Address,
+    reserve0: bigint,
+    reserve1: bigint,
+    isToken0In = true
+  ): Promise<FeeCalculationResult> {
+    const [baseFeeConfig, dynamicFeeConfig, protocolShareBps, currentDynBps] = await Promise.all([
+      this.getBaseFeeConfig(poolAddress),
+      this.getDynamicFeeConfig(poolAddress),
+      this.getProtocolShareBps(),
+      this.getCurrentDynBpsOnChain(poolAddress, token0, token1, reserve0, reserve1, isToken0In),
+    ]);
+
+    const effectiveBaseFee = this.calculateEffectiveBaseFee(baseFeeConfig, isToken0In);
+    const totalFeeBps = baseFeeConfig.baseFee + currentDynBps;
+
+    // Protocol fee is a percentage of the total fee
+    const protocolFee = Math.floor((totalFeeBps * protocolShareBps) / 10_000);
+    const lpFeeBps = totalFeeBps - protocolFee;
+
+    return {
+      poolAddress,
+      baseFeeConfig,
+      effectiveBaseFee,
+      dynamicFeeConfig,
+      currentDynamicFee: currentDynBps,
+      totalFeeBps,
+      protocolShareBps,
+      lpFeeBps,
+    };
+  }
+
+  /**
    * Gets complete fee breakdown for a pool.
    *
    * @param poolAddress - Pool address

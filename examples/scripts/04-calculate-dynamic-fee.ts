@@ -211,27 +211,136 @@ async function main() {
   console.log(`  Protocol: ${feeCalc.feeToPercent(protocolFee).toFixed(4)}% (${(protocolShareBps / 100).toFixed(2)}% share)`);
   console.log(`  LPs: ${feeCalc.feeToPercent(lpFee).toFixed(4)}%`);
 
-  // Real-time watching
-  console.log('\n--- Real-time Dynamic Fee Monitoring ---');
-  console.log('Watching for DynamicFeeUpdated events...');
-  console.log('(Press Ctrl+C to stop)\n');
+  // Time-series simulation: how fee changes over time with periodic swaps
+  console.log('\n--- Time-Series Simulation ---');
+  console.log('Simulating fee evolution over 30 minutes with swaps every 2 minutes:');
+  console.log('-'.repeat(80));
 
-  const unwatch = dynamicFeeCalc.watchDynamicFeeUpdates(poolAddress, (event, blockNum) => {
-    console.log(`[Block ${blockNum}] Dynamic Fee Updated:`);
-    console.log(`  Fee: ${event.dynBps} bps (${feeCalc.feeToPercent(event.dynBps).toFixed(4)}%)`);
-    console.log(`  Activity: ${event.activity}`);
-    console.log(`  Pulse: ${event.pulse}`);
-    console.log('');
-  });
+  {
+    // Simulation parameters
+    const simulationDuration = 30 * 60; // 30 minutes in seconds
+    const swapInterval = 2 * 60; // Swap every 2 minutes
+    const swapSizePercent = 1; // 1% of reserve per swap
 
-  // Keep process running for watching
-  await new Promise<void>((resolve) => {
-    setTimeout(() => {
-      unwatch();
-      console.log('Stopped watching for dynamic fee updates.');
-      resolve();
-    }, 30_000);
-  });
+    let simState = {
+      dynBps: currentState.dynBps,
+      activity: currentState.activity,
+      lastUpdate: currentTimestamp,
+    };
+
+    const timePoints: { time: number; fee: number; activity: bigint; event: string }[] = [];
+
+    // Initial state
+    timePoints.push({
+      time: 0,
+      fee: simState.dynBps,
+      activity: simState.activity,
+      event: 'START',
+    });
+
+    for (let elapsed = 0; elapsed <= simulationDuration; elapsed += 30) {
+      const currentTime = currentTimestamp + elapsed;
+
+      // Check if a swap occurs at this time
+      const isSwapTime = elapsed > 0 && elapsed % swapInterval === 0;
+
+      if (isSwapTime) {
+        // Perform swap
+        const amountOut = (reserve1 * BigInt(swapSizePercent * 10)) / 1000n;
+        const simulation = dynamicFeeCalc.simulateFeeAfterSwap(
+          simState,
+          config,
+          amountOut,
+          reserve1,
+          currentTime
+        );
+
+        simState = {
+          dynBps: simulation.newDynBps,
+          activity: simulation.newActivity,
+          lastUpdate: currentTime,
+        };
+
+        timePoints.push({
+          time: elapsed,
+          fee: simState.dynBps,
+          activity: simState.activity,
+          event: `SWAP (${swapSizePercent}%)`,
+        });
+      } else if (elapsed > 0 && elapsed % 60 === 0) {
+        // Just decay, no swap (every minute for observation)
+        const decayedActivity = dynamicFeeCalc.calculateDecayedActivity(
+          simState.activity,
+          currentTime - simState.lastUpdate,
+          config.halfLife
+        );
+        const decayedFee = dynamicFeeCalc['activityToFeeBps'](decayedActivity, config.maxCapBps);
+
+        timePoints.push({
+          time: elapsed,
+          fee: decayedFee,
+          activity: decayedActivity,
+          event: 'DECAY',
+        });
+      }
+    }
+
+    // Print timeline
+    console.log('Time(s) | Time(m) | Fee (bps) | Fee (%)    | Activity           | Event');
+    console.log('-'.repeat(80));
+
+    for (const point of timePoints) {
+      const minutes = (point.time / 60).toFixed(1).padStart(5);
+      const feePercent = feeCalc.feeToPercent(point.fee).toFixed(6).padStart(10);
+      const activityStr = point.activity.toString().padStart(18);
+
+      console.log(
+        `${point.time.toString().padStart(7)} | ` +
+        `${minutes} | ` +
+        `${point.fee.toString().padStart(9)} | ` +
+        `${feePercent}% | ` +
+        `${activityStr} | ` +
+        `${point.event}`
+      );
+    }
+
+    // Summary
+    const maxFee = Math.max(...timePoints.map(p => p.fee));
+    const minFee = Math.min(...timePoints.map(p => p.fee));
+    const avgFee = timePoints.reduce((sum, p) => sum + p.fee, 0) / timePoints.length;
+
+    console.log('-'.repeat(80));
+    console.log(`Summary over ${simulationDuration / 60} minutes:`);
+    console.log(`  Max Fee: ${maxFee} bps (${feeCalc.feeToPercent(maxFee).toFixed(4)}%)`);
+    console.log(`  Min Fee: ${minFee} bps (${feeCalc.feeToPercent(minFee).toFixed(4)}%)`);
+    console.log(`  Avg Fee: ${Math.round(avgFee)} bps (${feeCalc.feeToPercent(avgFee).toFixed(4)}%)`);
+  }
+
+  // Real-time watching (optional, disabled by default)
+  const watchRealTime = process.argv.includes('--watch');
+
+  if (watchRealTime) {
+    console.log('\n--- Real-time Dynamic Fee Monitoring ---');
+    console.log('Watching for DynamicFeeUpdated events...');
+    console.log('(Press Ctrl+C to stop)\n');
+
+    const unwatch = dynamicFeeCalc.watchDynamicFeeUpdates(poolAddress, (event, blockNum) => {
+      console.log(`[Block ${blockNum}] Dynamic Fee Updated:`);
+      console.log(`  Fee: ${event.dynBps} bps (${feeCalc.feeToPercent(event.dynBps).toFixed(4)}%)`);
+      console.log(`  Activity: ${event.activity}`);
+      console.log(`  Pulse: ${event.pulse}`);
+      console.log('');
+    });
+
+    // Keep process running for watching
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        unwatch();
+        console.log('Stopped watching for dynamic fee updates.');
+        resolve();
+      }, 30_000);
+    });
+  }
 
   console.log('\nDynamic fee calculation example completed.');
 }

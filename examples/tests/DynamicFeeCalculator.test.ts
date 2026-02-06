@@ -246,6 +246,141 @@ describe('DynamicFeeCalculator', () => {
     });
   });
 
+  describe('time-series simulation', () => {
+    it('should correctly simulate fee evolution over time with periodic swaps', () => {
+      const config: DynamicFeeConfig = {
+        maxCapBps: 500_000_000, // 5%
+        halfLife: 300, // 5 minutes
+        enabled: true,
+      };
+
+      // Simulation parameters - frequent large swaps to see accumulation
+      const startTimestamp = 1000;
+      const swapInterval = 30; // Every 30 seconds (frequent)
+      const simulationDuration = 180; // 3 minutes
+      const reserveOut = BigInt(100e18);
+      const swapAmount = BigInt(5e18); // 5% of reserve (larger swap)
+
+      let state: DynamicFeeState = {
+        dynBps: 0,
+        activity: 0n,
+        lastUpdate: startTimestamp,
+      };
+
+      const feeHistory: { time: number; fee: number; activity: bigint }[] = [];
+
+      // Record initial state
+      feeHistory.push({ time: 0, fee: state.dynBps, activity: state.activity });
+
+      // Simulate over time
+      for (let elapsed = swapInterval; elapsed <= simulationDuration; elapsed += swapInterval) {
+        const currentTime = startTimestamp + elapsed;
+
+        // Calculate decay first
+        const decayedActivity = calculateDecayedActivity(
+          state.activity,
+          currentTime - state.lastUpdate,
+          config.halfLife
+        );
+
+        // Add swap pulse
+        const pulse = calculateSwapPulse(swapAmount, reserveOut);
+        const newActivity = decayedActivity + pulse;
+        const newFee = activityToFeeBps(newActivity, config.maxCapBps);
+
+        state = {
+          dynBps: newFee,
+          activity: newActivity,
+          lastUpdate: currentTime,
+        };
+
+        feeHistory.push({ time: elapsed, fee: state.dynBps, activity: state.activity });
+      }
+
+      // Verify first swap creates non-zero fee
+      expect(feeHistory[1].fee).toBeGreaterThan(feeHistory[0].fee);
+      
+      // Verify activity accumulates (each swap adds pulse)
+      expect(feeHistory[1].activity).toBeGreaterThan(feeHistory[0].activity);
+      expect(feeHistory[2].activity).toBeGreaterThan(0n);
+
+      // Verify final fee is non-zero
+      const lastFee = feeHistory[feeHistory.length - 1].fee;
+      expect(lastFee).toBeGreaterThan(0);
+    });
+
+    it('should decay fee to near zero after long period without swaps', () => {
+      const config: DynamicFeeConfig = {
+        maxCapBps: 500_000_000,
+        halfLife: 300, // 5 minutes
+        enabled: true,
+      };
+
+      // Start with high activity
+      const initialActivity = BigInt(1000e16); // High activity
+      const initialFee = activityToFeeBps(initialActivity, config.maxCapBps);
+
+      expect(initialFee).toBeGreaterThan(0);
+
+      // After 10 half-lives (50 minutes), fee should be ~0
+      const elapsed = config.halfLife * 10;
+      const decayedActivity = calculateDecayedActivity(initialActivity, elapsed, config.halfLife);
+      const decayedFee = activityToFeeBps(decayedActivity, config.maxCapBps);
+
+      // Should be effectively zero (or very small)
+      expect(decayedFee).toBeLessThan(initialFee / 100);
+    });
+
+    it('should respect maxCapBps even with very high activity', () => {
+      const config: DynamicFeeConfig = {
+        maxCapBps: 50_000_000, // 0.5% cap
+        halfLife: 300,
+        enabled: true,
+      };
+
+      // Very high activity that would exceed cap
+      const hugeActivity = BigInt(1e30);
+      const fee = activityToFeeBps(hugeActivity, config.maxCapBps);
+
+      expect(fee).toBe(config.maxCapBps);
+    });
+
+    it('should show gradual decay between swaps', () => {
+      const config: DynamicFeeConfig = {
+        maxCapBps: 500_000_000,
+        halfLife: 60, // 1 minute for faster decay
+        enabled: true,
+      };
+
+      const startTimestamp = 1000;
+      const reserveOut = BigInt(100e18);
+      const swapAmount = BigInt(10e18); // 10% of reserve - big swap
+
+      // Perform initial swap
+      const pulse = calculateSwapPulse(swapAmount, reserveOut);
+      const initialActivity = pulse;
+      const initialFee = activityToFeeBps(initialActivity, config.maxCapBps);
+
+      // Track decay over time (every 15 seconds)
+      const decayPoints: { time: number; fee: number }[] = [];
+      
+      for (let elapsed = 0; elapsed <= 180; elapsed += 15) {
+        const decayedActivity = calculateDecayedActivity(initialActivity, elapsed, config.halfLife);
+        const fee = activityToFeeBps(decayedActivity, config.maxCapBps);
+        decayPoints.push({ time: elapsed, fee });
+      }
+
+      // Verify monotonic decay
+      for (let i = 1; i < decayPoints.length; i++) {
+        expect(decayPoints[i].fee).toBeLessThanOrEqual(decayPoints[i - 1].fee);
+      }
+
+      // After 3 half-lives (180s), fee should be ~1/8 of initial
+      const finalFee = decayPoints[decayPoints.length - 1].fee;
+      expect(finalFee).toBeLessThan(initialFee / 4);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle very large activity values', () => {
       const activity = BigInt(1e30);

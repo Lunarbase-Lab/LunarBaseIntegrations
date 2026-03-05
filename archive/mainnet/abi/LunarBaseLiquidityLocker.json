@@ -45,11 +45,7 @@
     "name": "claimFeesFor",
     "inputs": [
       { "name": "id", "type": "uint256", "internalType": "uint256" },
-      {
-        "name": "beneficiary_",
-        "type": "address",
-        "internalType": "address"
-      },
+      { "name": "beneficiary_", "type": "address", "internalType": "address" },
       { "name": "to", "type": "address", "internalType": "address" }
     ],
     "outputs": [
@@ -158,11 +154,7 @@
     "name": "setBeneficiary",
     "inputs": [
       { "name": "id", "type": "uint256", "internalType": "uint256" },
-      {
-        "name": "newBeneficiary",
-        "type": "address",
-        "internalType": "address"
-      }
+      { "name": "newBeneficiary", "type": "address", "internalType": "address" }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -173,11 +165,7 @@
     "inputs": [
       { "name": "id", "type": "uint256", "internalType": "uint256" },
       { "name": "owner_", "type": "address", "internalType": "address" },
-      {
-        "name": "newBeneficiary",
-        "type": "address",
-        "internalType": "address"
-      }
+      { "name": "newBeneficiary", "type": "address", "internalType": "address" }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -404,11 +392,7 @@
     "name": "LunarBaseLiquidityLocker__InsufficientBalance",
     "inputs": []
   },
-  {
-    "type": "error",
-    "name": "LunarBaseLiquidityLocker__Locked",
-    "inputs": []
-  },
+  { "type": "error", "name": "LunarBaseLiquidityLocker__Locked", "inputs": [] },
   {
     "type": "error",
     "name": "LunarBaseLiquidityLocker__NotBeneficiary",

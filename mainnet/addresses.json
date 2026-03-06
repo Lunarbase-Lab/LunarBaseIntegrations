@@ -1,7 +1,7 @@
 {
 	"chainId": 8453,
 	"network": "Base Mainnet",
-	"CurvePMM": "0x6f5d0f3a6e9225fe04ea29df5467113d6e1c002c",
-	"CurvePMMPeriphery": "0xc9160c609cb928551a8dfa188a991f833424b0d3",
+	"CurvePMM": "0xeccd5b11549140c67fa2e8b6028bc86a4f9cab6d",
+	"CurvePMMPeriphery": "0x110ab7d4a269cc0e94b6f56926186ec4716edb1b",
 	"Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
 }

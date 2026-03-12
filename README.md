@@ -17,6 +17,8 @@ On-chain proactive market maker that concentrates liquidity in a dynamic band ar
 │   └── security.md              — Security model, limitations, dependencies
 ├── mainnet/
 │   └── addresses.json           — Deployed contract addresses
+├── testnet/
+│   └── addresses.json           — Deployed contract addresses
 └── archive/                     — Legacy docs, ABIs, and examples
 ```
 

@@ -1,7 +1,14 @@
 {
-	"chainId": 8453,
-	"network": "Base Mainnet",
-	"CurvePMM": "0xeccd5b11549140c67fa2e8b6028bc86a4f9cab6d",
-	"CurvePMMPeriphery": "0x110ab7d4a269cc0e94b6f56926186ec4716edb1b",
-	"Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  "Base": {
+    "CurvePMM": "0xf8421e6dd4e4913271e7e26d65da3388f76a89dc",
+    "CurvePMMPeriphery": "0xfb17b8173c7936e7279e434c2c8dc3744076118b"
+  },
+  "Monad": {
+    "CurvePMM": "0x9655ac922ee06adf009631ab0e0d604785f43b99",
+    "CurvePMMPeriphery": "0x0022eadeccc2fb1610e4e1d96678cac53242609a"
+  },
+  "BNB Chain": {
+    "CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
+    "CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
+  }
 }

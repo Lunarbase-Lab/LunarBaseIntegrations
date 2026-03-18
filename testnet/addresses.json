@@ -1,14 +1,15 @@
 {
-  "Base Sepolia": {
-    "CurvePMM": "0x5b278715ba7450ce40fbdfc7b8702fbb493e0dc2",
-    "CurvePMMPeriphery": "0xe3d0df8d4dc3d15370444beb7befd511a8b219f1"
-  },
-  "Monad Testnet": {
-    "CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
-    "CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
-  },
-  "BNB Testnet": {
-    "CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
-    "CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
-  }
+	"Base Sepolia": {
+		"CurvePMM": "0x2c10647a0D96cab7fE26044CA6d3F854280dC906",
+		"CurvePMMPeriphery": "0x21f52a1d45DAb30b518b31CA8e44f91B588A8DEC",
+		"CurvePMMPositionManager": "0x568a4db22e5e0dc9171a4af71a2645264e1ef415"
+	},
+	"Monad Testnet": {
+		"CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
+		"CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
+	},
+	"BNB Testnet": {
+		"CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
+		"CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
+	}
 }

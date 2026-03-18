@@ -1,14 +1,15 @@
 {
-  "Base": {
-    "CurvePMM": "0xf8421e6dd4e4913271e7e26d65da3388f76a89dc",
-    "CurvePMMPeriphery": "0xfb17b8173c7936e7279e434c2c8dc3744076118b"
-  },
-  "Monad": {
-    "CurvePMM": "0x9655ac922ee06adf009631ab0e0d604785f43b99",
-    "CurvePMMPeriphery": "0x0022eadeccc2fb1610e4e1d96678cac53242609a"
-  },
-  "BNB Chain": {
-    "CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
-    "CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
-  }
+	"Base": {
+		"CurvePMM": "0x88a710241931BFf76c549e0780E4E52bee2175f1",
+		"CurvePMMPeriphery": "0x6d37c9a1b9290BC41b68a1ca8Ac0FC6C1Aa30614",
+		"CurvePMMPositionManager": "0xa2C5113B1863C1eE1E5b4Ac6Bc2a2F65D42B9517"
+	},
+	"Monad": {
+		"CurvePMM": "0x9655ac922ee06adf009631ab0e0d604785f43b99",
+		"CurvePMMPeriphery": "0x0022eadeccc2fb1610e4e1d96678cac53242609a"
+	},
+	"BNB Chain": {
+		"CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
+		"CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
+	}
 }

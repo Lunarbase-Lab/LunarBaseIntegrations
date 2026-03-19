@@ -1,7 +1,7 @@
 {
 	"Base Sepolia": {
-		"CurvePMM": "0x2c10647a0D96cab7fE26044CA6d3F854280dC906",
-		"CurvePMMPeriphery": "0x21f52a1d45DAb30b518b31CA8e44f91B588A8DEC",
+		"CurvePMM": "0xcfa7de4418707d4fdc06e4634a4b2ae95af528c7",
+		"CurvePMMPeriphery": "0x2913dae57e02c8830a89cd8371e248f2b376226b",
 		"CurvePMMPositionManager": "0x568a4db22e5e0dc9171a4af71a2645264e1ef415"
 	},
 	"Monad Testnet": {

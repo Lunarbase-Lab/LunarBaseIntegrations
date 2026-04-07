@@ -13,13 +13,29 @@ LunarBase PropAMM is an on-chain proactive market maker that concentrates liquid
 ## Architecture
 
 ```
-User ──► CurvePMMPeriphery ──► CurvePMM (Core Pool)
-              │                       │
-              ├── Permit2 validation  ├── Quote computation
-              ├── Token routing       ├── Reserve management
-              └── Native ETH wrap     └── Operator state checks
+User / LP / Operator / Owner
+              │
+              ▼
+             Pool
+              ├── Quote functions: quoteExactIn, quoteXToY, quoteYToX
+              ├── Swap execution: swapExactIn, swapExactIn + Permit2, swapExactInNative
+              └── Pool state: upd, state, isFresh, getXReserve, getYReserve
 ```
 
-**CurvePMM** (core pool) holds reserves, validates operator freshness, computes output amounts via the price curve, and executes token transfers.
+**Pool** is now the sole on-chain integration surface. It holds reserves, validates operator freshness, computes output amounts via the price curve, executes swaps, records LP requests and positions, and exposes treasury and partner fee controls.
 
-**CurvePMMPeriphery** is the user-facing entry point. It resolves token addresses to the correct pool, validates Permit2 signatures, enforces slippage limits, and wraps/unwraps native ETH.
+For ERC-20 swaps, the ABI exposes both a direct `swapExactIn` entry point and an overload that takes Permit2 data plus a signature. For native pools, callers use `swapExactInNative` directly on the same contract.
+
+## Core Read Interface
+
+```solidity
+function X() external view returns (address);
+function Y() external view returns (address);
+function state() external view returns (uint160 pX96, uint48 fee, uint48 latestUpdateBlock);
+function isFresh() external view returns (bool fresh);
+function getXReserve() external view returns (uint112);
+function getYReserve() external view returns (uint112);
+function blockDelay() external view returns (uint48);
+```
+
+Use these getters to identify the pair, inspect the latest operator-set price and fee state, and decide whether a quote is fresh enough to trade against.

@@ -2,23 +2,30 @@
 
 ## On-Chain Quoting
 
-The periphery exposes a gas-free view function for computing swap output amounts:
+`Pool` exposes a gas-free view function for computing swap output amounts:
 
 ```solidity
-function quoteExactIn(QuoteParams calldata params) external view returns (uint256 amountOut);
-
-struct QuoteParams {
-    address tokenIn;
-    address tokenOut;
-    uint256 amountIn;
-}
+function quoteExactIn(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn
+) external view returns (uint256 amountOut);
 ```
 
 - **Gas cost**: 0 (view function, use via `eth_call`)
 - **Return value**: `amountOut` — net output after fees
-- **Does not revert**. Returns `0` when:
-    - Operator state is stale (`block.number >= latestUpdateBlock + blockDelay`)
-    - Input exceeds the maximum tradeable amount within the current active band
+
+For direction-specific quoting and curve introspection, the ABI also exposes:
+
+```solidity
+function quoteXToY(uint256 dx) external view returns (uint256 dy, uint160 pNext, uint256 fee);
+function quoteYToX(uint256 dy) external view returns (uint256 dx, uint160 pNext, uint256 fee);
+function state() external view returns (uint160 pX96, uint48 fee, uint48 latestUpdateBlock);
+function isFresh() external view returns (bool fresh);
+function blockDelay() external view returns (uint48);
+```
+
+Integrators should gate execution on `isFresh()` or compare `state().latestUpdateBlock` with `blockDelay()` before trusting a quote for execution.
 
 ## API Endpoints
 

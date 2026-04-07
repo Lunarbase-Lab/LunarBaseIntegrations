@@ -24,13 +24,13 @@ On-chain proactive market maker that concentrates liquidity in a dynamic band ar
 
 ## Contracts in Scope
 
-| Contract              | Description                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------- |
-| **CurvePMM**          | Core pool — holds reserves, computes quotes, executes swaps                         |
-| **CurvePMMPeriphery** | User-facing wrapper — token-address routing, Permit2 approvals, native ETH handling |
+| Contract | Description |
+| -------- | ----------- |
+| **Pool** | Unified entry point for quoting, swaps (direct, Permit2, native ETH), LP position requests/execution, fees, and admin controls |
 
 ## Key Concepts
 
 - **Operator-driven pricing**: Up to 5 immutable operator addresses push price updates on-chain. The pool only serves quotes when operator state is fresh (within `blockDelay` blocks).
+- **Single-contract integration surface**: Quotes, swaps, LP actions, treasury/partner fees, and admin controls all live on the same `Pool` ABI.
 - **Permit2 gasless approvals**: Users approve the canonical Permit2 contract once, then sign per-swap permits off-chain.
 - **Native ETH support**: Pools where token X is `address(0)` accept native ETH via `swapExactInNative`.

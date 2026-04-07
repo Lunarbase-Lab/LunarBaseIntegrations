@@ -10,7 +10,7 @@ import { base } from "viem/chains";
 const API_BASE = "https://api.yourdomain.com/api";
 
 const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
-const CURVE_PMM_PERIPHERY = "0xActualRouterAddress";
+const POOL = "0xActualPoolAddress";
 
 // Permit2 signature helper
 async function signPermit2Transfer(
@@ -50,7 +50,7 @@ async function signPermit2Transfer(
 				token: permit.permitted.token,
 				amount: BigInt(permit.permitted.amount),
 			},
-			spender: CURVE_PMM_PERIPHERY,
+			spender: POOL,
 			nonce: BigInt(permit.nonce),
 			deadline: BigInt(permit.deadline),
 		},
@@ -119,7 +119,7 @@ async function executeSwap(
 					token: tokenIn,
 					amount: amountIn,
 				},
-				spender: CURVE_PMM_PERIPHERY,
+				spender: POOL,
 				nonce: nonceData.data.nonce,
 				deadline,
 			},
@@ -157,7 +157,7 @@ async function executeSwap(
 	// 4. Execute transaction
 	const hash = await walletClient.sendTransaction({
 		account,
-		to: calldataData.data.router,
+		to: calldataData.data.router, // Pool address returned by the API
 		data: calldataData.data.callData,
 		value: isNative ? BigInt(amountIn) : 0n,
 	});
@@ -217,7 +217,7 @@ from eth_account.messages import encode_structured_data
 
 API_BASE = 'https://api.yourdomain.com/api'
 PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
-CURVE_PMM_PERIPHERY = '0xYourRouterAddress'
+POOL = '0xYourPoolAddress'
 
 def sign_permit2_transfer(
     account: Account,
@@ -257,7 +257,7 @@ def sign_permit2_transfer(
                 'token': token,
                 'amount': int(amount),
             },
-            'spender': CURVE_PMM_PERIPHERY,
+            'spender': POOL,
             'nonce': int(nonce),
             'deadline': deadline,
         },

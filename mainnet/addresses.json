@@ -1,13 +1,5 @@
 {
 	"Base": {
-		"Pool": "0x0716f359B3Bf8d03A3d9d39c60ba9820a1671B99"
-	},
-	"Monad": {
-		"CurvePMM": "0x9655ac922ee06adf009631ab0e0d604785f43b99",
-		"CurvePMMPeriphery": "0x0022eadeccc2fb1610e4e1d96678cac53242609a"
-	},
-	"BNB Chain": {
-		"CurvePMM": "0xc9c97583b3727211d3f354a8027fd20d269ad894",
-		"CurvePMMPeriphery": "0x9655ac922ee06adf009631ab0e0d604785f43b99"
+		"Pool": "0x00003bf45Ce34Bf1BeA78669f9A40ee630e11b99"
 	}
 }

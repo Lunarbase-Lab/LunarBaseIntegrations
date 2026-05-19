@@ -59,12 +59,6 @@ Require API key in header:
 X-API-Key: sk_partner_your_key_here
 ```
 
-Or:
-
-```
-Authorization: Bearer sk_partner_your_key_here
-```
-
 ---
 
 ## Rate Limiting
@@ -672,6 +666,41 @@ async function fetchWithRetry(url: string, maxRetries = 3) {
 	throw new Error("Max retries exceeded");
 }
 ```
+
+**Rate Limit Increase:**
+Contact us for Partner API key with higher limits.
+
+---
+
+## Changelog
+
+### v0.1.0 (Current)
+
+gInt(10 \*\* decimals);
+return (Number(value) / Number(divisor)).toFixed(decimals);
+}
+
+````
+
+### 6. Rate Limiting with Retry
+
+```typescript
+async function fetchWithRetry(url: string, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url);
+
+    if (response.status === 429) {
+      const retryAfter = parseInt(response.headers.get('Retry-After') || '60');
+      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error('Max retries exceeded');
+}
+````
 
 **Rate Limit Increase:**
 Contact us for Partner API key with higher limits.

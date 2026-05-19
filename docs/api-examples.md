@@ -10,7 +10,7 @@ import { base } from "viem/chains";
 const API_BASE = "https://api.yourdomain.com/api";
 
 const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
-const POOL = "0xActualPoolAddress";
+const CURVE_PMM_PERIPHERY = "0xActualRouterAddress";
 
 // Permit2 signature helper
 async function signPermit2Transfer(
@@ -50,7 +50,7 @@ async function signPermit2Transfer(
 				token: permit.permitted.token,
 				amount: BigInt(permit.permitted.amount),
 			},
-			spender: POOL,
+			spender: CURVE_PMM_PERIPHERY,
 			nonce: BigInt(permit.nonce),
 			deadline: BigInt(permit.deadline),
 		},
@@ -119,7 +119,7 @@ async function executeSwap(
 					token: tokenIn,
 					amount: amountIn,
 				},
-				spender: POOL,
+				spender: CURVE_PMM_PERIPHERY,
 				nonce: nonceData.data.nonce,
 				deadline,
 			},
@@ -157,7 +157,7 @@ async function executeSwap(
 	// 4. Execute transaction
 	const hash = await walletClient.sendTransaction({
 		account,
-		to: calldataData.data.router, // Pool address returned by the API
+		to: calldataData.data.router,
 		data: calldataData.data.callData,
 		value: isNative ? BigInt(amountIn) : 0n,
 	});
@@ -217,7 +217,7 @@ from eth_account.messages import encode_structured_data
 
 API_BASE = 'https://api.yourdomain.com/api'
 PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
-POOL = '0xYourPoolAddress'
+CURVE_PMM_PERIPHERY = '0xYourRouterAddress'
 
 def sign_permit2_transfer(
     account: Account,
@@ -257,7 +257,7 @@ def sign_permit2_transfer(
                 'token': token,
                 'amount': int(amount),
             },
-            'spender': POOL,
+            'spender': CURVE_PMM_PERIPHERY,
             'nonce': int(nonce),
             'deadline': deadline,
         },
@@ -514,19 +514,24 @@ function formatAmount(amount: string, decimals: number): string {
 
 ```typescript
 async function fetchWithRetry(url: string, maxRetries = 3) {
-	for (let i = 0; i < maxRetries; i++) {
-		const response = await fetch(url);
+ for (let i = 0; i < maxRetries; i++) {
+  const response = await fetch(url);
 
-		if (response.status === 429) {
-			const retryAfter = parseInt(response.headers.get("Retry-After") || "60");
-			await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
-			continue;
-		}
+  if (response.status === 429) {
+   const retryAfter = parseInt(response.headers.get("Retry-After") || "60");
+   await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+   continue;
+  }
 
-		return response;
-	}
+  return response;
+ }
 
-	throw new Error("Max retries exceeded");
+ throw new Error("Max retries exceeded"
+
+    return response;
+  }
+
+  throw new Error('Max retries exceeded');
 }
 ```
 

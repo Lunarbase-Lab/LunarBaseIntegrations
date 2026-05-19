@@ -1,115 +1,64 @@
 # Price Discovery
 
-## On-Chain Quoting
+## On-Chain State
 
-`Pool` exposes a gas-free view function for computing swap output amounts:
-
-```solidity
-function quoteExactIn(
-    address tokenIn,
-    address tokenOut,
-    uint256 amountIn
-) external view returns (uint256 amountOut);
-```
-
-- **Gas cost**: 0 (view function, use via `eth_call`)
-- **Return value**: `amountOut` — net output after fees
-
-For direction-specific quoting and curve introspection, the ABI also exposes:
+The pool state is operator-driven:
 
 ```solidity
-function quoteXToY(uint256 dx) external view returns (uint256 dy, uint160 pNext, uint256 fee);
-function quoteYToX(uint256 dy) external view returns (uint256 dx, uint160 pNext, uint256 fee);
-function state() external view returns (uint160 pX96, uint48 fee, uint48 latestUpdateBlock);
-function isFresh() external view returns (bool fresh);
+function state() external view returns (uint80 anchorPX48, uint24 feeAskX24, uint24 feeBidX24, uint48 latestUpdateBlock);
+function anchorPrice() external view returns (uint80 anchorPX48);
 function blockDelay() external view returns (uint48);
+function concentrationK() external view returns (uint32);
 ```
 
-Integrators should gate execution on `isFresh()` or compare `state().latestUpdateBlock` with `blockDelay()` before trusting a quote for execution.
+- `anchorPX48` is the operator-published anchor sqrt price in Q32.48 form
+- `feeBidX24` is the X -> Y fee in Q24 format
+- `feeAskX24` is the Y -> X fee in Q24 format
+- `latestUpdateBlock` is the block at which operators last refreshed the state
+- quotes and swaps depend on this state being fresh under `blockDelay`
+- the runtime address used on Base Mainnet is the UUPS proxy `0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99`
 
-## API Endpoints
+## Read-Only Quote Functions
 
-### Get Pairs
-
-```http
-GET /api/quote/pairs
+```solidity
+function quoteXToY(uint256 dx) external view returns (uint256 dy, uint80 pNext, uint256 fee);
+function quoteYToX(uint256 dy) external view returns (uint256 dx, uint80 pNext, uint256 fee);
+function quoteExactIn(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOut);
 ```
 
-Returns available trading pairs with token metadata.
+Quote semantics:
 
-**Response:**
+- `quoteXToY` and `quoteYToX` are directional and expose post-trade `pNext`
+- `quoteExactIn` is the address-routed convenience view
+- X -> Y quotes use `anchorPX48` together with `feeBidX24`
+- Y -> X quotes use `anchorPX48` together with `feeAskX24`
+- stale or impossible quotes return `0` output rather than executing
 
-```json
-{
-	"success": true,
-	"data": [
-		{
-			"symbol": "ETH-USDC",
-			"tokens": {
-				"tokenX": {
-					"address": "0x...",
-					"name": "Ether",
-					"symbol": "ETH",
-					"decimals": 18
-				},
-				"tokenY": {
-					"address": "0x...",
-					"name": "USD Coin",
-					"symbol": "USDC",
-					"decimals": 18
-				}
-			}
-		}
-	]
-}
-```
+## Directional `Lx/Ly` Semantics
 
-### Quote Exact Input
+Current PMM quote math is directional:
 
-```http
-GET /api/quote/exact-in
-```
+- `X -> Y` execution depends on available `Y`-side liquidity
+- `Y -> X` execution depends on available `X`-side liquidity
 
-**Query Parameters:**
+This means the pool can still quote one direction even when only one reserve side is available.
 
-| Parameter  | Type      | Description                   |
-| ---------- | --------- | ----------------------------- |
-| `tokenIn`  | `address` | Token address being sold      |
-| `tokenOut` | `address` | Token address being bought    |
-| `amountIn` | `uint256` | Amount in minimal units (wei) |
+That same directional model is mirrored off-chain in:
 
-**Response:**
+- `pmm-math/curve-pmm-math`
 
-```json
-{
-	"success": true,
-	"data": {
-		"amountOut": "2500000000",
-		"price": "2500.50",
-		"priceImpact": "0.15",
-		"fee": "0.003"
-	}
-}
-```
+## Practical Quote Guidance
 
-## Rate Limiting
+- use `quoteXToY` / `quoteYToX` when you already know direction and want `pNext` plus fee
+- use `quoteExactIn` when you want a simpler token-address-based integration
+- always check freshness indirectly through the returned output or directly via `state()` + `blockDelay()`
 
-Public endpoints are rate-limited by IP. Check response headers:
+## What Price Means For LP Flows
 
-| Header                  | Description                 |
-| ----------------------- | --------------------------- |
-| `X-RateLimit-Limit`     | Maximum requests per window |
-| `X-RateLimit-Remaining` | Remaining requests          |
-| `X-RateLimit-Reset`     | Reset time (Unix timestamp) |
+The operator-published `anchorPX48` drives both swap quoting and LP wealth valuation:
 
-## Error Responses
+- `executeDeposit(...)` uses the current normalized anchor price to mint `principalWealth`
+- `executeWithdrawal(...)` uses the current normalized anchor price as `P_settle`
+- `claimFees(...)` uses the current normalized anchor price immediately
 
-```json
-{
-	"success": false,
-	"statusCode": 400,
-	"error": "Bad Request",
-	"message": "Invalid token address",
-	"timestamp": 1708934400000
-}
-```
+So the pool's quote state is not only for swaps; it is also the valuation anchor for wealth-based LP settlement.

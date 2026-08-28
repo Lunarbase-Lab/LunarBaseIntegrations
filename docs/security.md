@@ -24,7 +24,7 @@
 
 Swaps and valuation depend on fresh operator state:
 
-- if operators stop updating `anchorPX48`, swaps revert on `StalePrice()`
+- if operators stop updating the Q64.96 `anchorPrice`, swaps revert on `StalePrice()`
 - read-only quotes return zero output under stale state
 - LP deposit valuation, withdrawal settlement, and yield claims all use the current anchor price through `ValuationLib`
 
@@ -50,6 +50,7 @@ These are not bugs; they are current intended semantics:
 ## Known Limitations
 
 - operators must keep state fresh under `blockDelay`
+- `maxPunishmentX24` and the non-whitelisted fee multiplier are owner-controlled economic parameters that integrators should read on-chain
 - deposit and withdrawal execution are owner-mediated flows
 - helper scripts still use some legacy `CurvePMM` naming and one funding script still assumes two-sided bootstrap even though the contract supports one-sided deposits
 - no external audit is documented in this repository

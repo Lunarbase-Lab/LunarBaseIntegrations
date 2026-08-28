@@ -65,7 +65,7 @@ Flow:
 1. Pool must be paused
 2. Configured depositor escrows `amountX` / `amountY` into the pool
 3. Owner executes the request
-4. `executeDeposit(...)` values accepted amounts using the current normalized `anchorPX48`
+4. `executeDeposit(...)` values accepted amounts using the current price derived from the Q64.96 `anchorPrice`
 5. The position receives `principalWealth`
 6. A new lock tranche is appended
 
@@ -104,7 +104,7 @@ Flow:
 3. APR accrual is settled and then frozen
 4. Owner executes later
 5. `executeWithdrawal(...)` computes the current penalty on still-locked wealth
-6. Net principal wealth and pending yield wealth are converted using the current normalized `anchorPX48`
+6. Net principal wealth and pending yield wealth are converted using the current price derived from the Q64.96 `anchorPrice`
 7. Principal is paid from active liquidity and the yield-funded component is debited from treasury buckets
 
 Settlement modes:
@@ -130,7 +130,7 @@ Flow:
 
 1. Operator calls `claimFees(...)`
 2. Fixed APR is settled into `pendingYieldWealth`
-3. Current normalized `anchorPX48` is used immediately
+3. The current price derived from the Q64.96 `anchorPrice` is used immediately
 4. Requested wealth is converted to `X`, `Y`, or `Split`
 5. Treasury inventory must already contain the requested token mix
 6. Tokens are transferred to `feeRecipient`

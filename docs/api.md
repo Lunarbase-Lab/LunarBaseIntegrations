@@ -1,5 +1,7 @@
 # Dark Pools API - Integration Guide
 
+> **Contract version note:** this page documents the hosted REST API. Example pairs and payload values are illustrative and are not the authoritative on-chain deployment registry. For the BNB Smart Chain v0.4.0 Pool, use [`../mainnet/addresses.json`](../mainnet/addresses.json) and [`../abi/Pool.abi.json`](../abi/Pool.abi.json).
+
 ## Table of Contents
 
 1. [Overview](#overview)

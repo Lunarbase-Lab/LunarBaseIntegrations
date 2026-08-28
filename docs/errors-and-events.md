@@ -6,9 +6,15 @@ This page summarizes the main externally visible events and custom errors across
 
 ```solidity
 event SwapExecuted(address recipient, bool xToY, uint256 dx, uint256 dy, uint256 fee);
-event StateUpdated(uint80 anchorPrice, uint24 feeAskX24, uint24 feeBidX24);
+event StateUpdated(uint160 anchorPrice, uint24 feeAskX24, uint24 feeBidX24);
 event BlockDelaySet(uint48 blockDelay);
-event ConcentrationKSet(uint32 concentrationK);
+event MaxPunishmentX24Set(uint24 maxPunishmentX24);
+event PunishmentApplied(
+    bool indexed xToY,
+    uint24 punishmentX24,
+    uint24 feeAskX24,
+    uint24 feeBidX24
+);
 event WhitelistSet(address indexed account, bool whitelisted);
 event BlacklistFeeMultiplierSet(uint256 multiplier);
 event Sync(uint128 reserveX, uint128 reserveY);
@@ -17,12 +23,15 @@ event Sync(uint128 reserveX, uint128 reserveY);
 What they mean:
 
 - `SwapExecuted` - exact-input swap completed
-- `StateUpdated` - operator wrote a new `anchorPX48` plus direction-specific `feeAskX24` / `feeBidX24`
+- `StateUpdated` - operator wrote a new Q64.96 `anchorPrice` plus direction-specific `feeAskX24` / `feeBidX24`
 - `BlockDelaySet` - owner changed staleness window
-- `ConcentrationKSet` - owner changed PMM concentration
+- `MaxPunishmentX24Set` - owner changed the maximum linear amount-dependent punishment
+- `PunishmentApplied` - a successful swap increased one stored directional fee; `xToY` is the only indexed field, `punishmentX24` is the applied increment, and the final two fields are the absolute post-swap fees
 - `WhitelistSet` - owner changed whether an account pays the base fee or the blacklist multiplier
 - `BlacklistFeeMultiplierSet` - owner changed the extra fee multiplier for non-whitelisted swappers
 - `Sync` - cached reserves were refreshed from balances
+
+`StateUpdated` retains three fields in v0.4.0, but its first field is `uint160` rather than the legacy `uint80`. `maxPunishmentX24` remains a separate getter and is not part of the `state()` return tuple.
 
 ## Position Manager Events
 

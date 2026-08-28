@@ -1,4 +1,5 @@
 {
+	"notice": "Legacy deployments retained for reference. They do not use the v0.4.0 Pool ABI.",
 	"Base Sepolia": {
 		"CurvePMM": "0xcfa7de4418707d4fdc06e4634a4b2ae95af528c7",
 		"CurvePMMPeriphery": "0x2913dae57e02c8830a89cd8371e248f2b376226b",

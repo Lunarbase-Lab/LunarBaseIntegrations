@@ -1,22 +1,17 @@
 {
-  "Base": {
-    "Pools": {
-      "ETH/USDC": "0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99",
-      "cbBTC/USDC": "0xcb1c06554772bc855d81a6be648cc599710e1b99",
-      "EURC/USDC": "0x000072CD093F96e2C7d7F4FB7b9ff22241c41b99"
-    }
-  },
-  "Monad": {
-    "Pools": {
-      "MON/USDC": "0x0000a8fd148694aE3E17c079Ce4BBF8187758888",
-      "cbBTC/USDC": "0xb1C8eAd40da9b6AfcB6f34B15e10123505c38888",
-      "ETH/USDC": "0xEEEEd7C096FaE01F3506cd3d9dEAc1DDC6B58888"
-    }
-  },
-  "BNB Chain": {
-    "Pools": {
-      "BNB/BUSD-T": "0x00007904d186680C709519e71f4Dc3e2DF8f1b99",
-      "BTCB/BUSD-T": "0x0B1ce37bc7eE857916B4e2dF9F69775c36831B99"
+  "version": "0.4.0",
+  "abi": "../abi/Pool.abi.json",
+  "networks": {
+    "BNB Smart Chain": {
+      "chainId": 56,
+      "pools": {
+        "BNB/USDT": {
+          "proxy": "0x00007904d186680C709519e71f4Dc3e2DF8f1b99",
+          "implementation": "0x385E90e2F2Bf13DfE55AF5F7F1da43D72373f7E0",
+          "tokenX": "0x0000000000000000000000000000000000000000",
+          "tokenY": "0x55d398326f99059fF775485246999027B3197955"
+        }
+      }
     }
   }
 }

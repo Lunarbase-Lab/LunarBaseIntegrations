@@ -1,64 +1,122 @@
-# Price Discovery
+# Price Discovery and Slippage
 
 ## On-Chain State
 
-The pool state is operator-driven:
+The v0.4.0 pool state is operator-driven:
 
 ```solidity
-function state() external view returns (uint80 anchorPX48, uint24 feeAskX24, uint24 feeBidX24, uint48 latestUpdateBlock);
-function anchorPrice() external view returns (uint80 anchorPX48);
+function state()
+    external
+    view
+    returns (
+        uint160 anchorPrice,
+        uint24 feeAskX24,
+        uint24 feeBidX24,
+        uint48 latestUpdateBlock
+    );
+
+function anchorPrice() external view returns (uint160 anchorPrice);
+function maxPunishmentX24() external view returns (uint24);
 function blockDelay() external view returns (uint48);
-function concentrationK() external view returns (uint32);
 ```
 
-- `anchorPX48` is the operator-published anchor sqrt price in Q32.48 form
-- `feeBidX24` is the X -> Y fee in Q24 format
-- `feeAskX24` is the Y -> X fee in Q24 format
-- `latestUpdateBlock` is the block at which operators last refreshed the state
-- quotes and swaps depend on this state being fresh under `blockDelay`
-- the runtime address used on Base Mainnet is the UUPS proxy `0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99`
+- `anchorPrice` is the operator-published sqrt-price in Q64.96 form: `floor(sqrt(P) * 2^96)`
+- `feeBidX24` is the stored X -> Y directional fee in Q24 format
+- `feeAskX24` is the stored Y -> X directional fee in Q24 format
+- `latestUpdateBlock` is the block in which operators last refreshed the state
+- `maxPunishmentX24` caps the amount-dependent punishment increment for a swap
+- `uint24.max` is treated as the sentinel for conceptual Q24 `100%`
+
+The Rust crate represents `anchorPrice` as `PoolParams.sqrt_price_x96: U256` because Rust has no native `uint160`; v0.4.0 validates that it fits the Solidity `uint160` domain.
+
+## Price Conversion
+
+Let `S = anchorPrice` and `Q96 = 2^96`. The raw-unit price of X in Y is `(S / Q96)^2`.
+
+The contract deliberately follows Solidity integer rounding at each multiplication/division step:
+
+```text
+xValueInY(amountX) = floor(floor(amountX * S / Q96) * S / Q96)
+yValueInX(amountY) = floor(floor(amountY * Q96 / S) * Q96 / S)
+```
+
+For tokens with different decimals, `P` is the raw-unit ratio. Apply token decimal normalization when converting it to a display price.
 
 ## Read-Only Quote Functions
 
 ```solidity
-function quoteXToY(uint256 dx) external view returns (uint256 dy, uint80 pNext, uint256 fee);
-function quoteYToX(uint256 dy) external view returns (uint256 dx, uint80 pNext, uint256 fee);
-function quoteExactIn(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOut);
+function quoteXToY(uint256 dx)
+    external
+    view
+    returns (uint256 dy, uint160 pNext, uint256 fee);
+
+function quoteYToX(uint256 dy)
+    external
+    view
+    returns (uint256 dx, uint160 pNext, uint256 fee);
+
+function quoteExactIn(address tokenIn, address tokenOut, uint256 amountIn)
+    external
+    view
+    returns (uint256 amountOut);
 ```
 
-Quote semantics:
+In v0.4.0, conversion is linear at the operator anchor and `pNext` equals the unchanged `anchorPrice`. Amount-dependent execution impact is charged separately through punishment, as described below.
 
-- `quoteXToY` and `quoteYToX` are directional and expose post-trade `pNext`
-- `quoteExactIn` is the address-routed convenience view
-- X -> Y quotes use `anchorPX48` together with `feeBidX24`
-- Y -> X quotes use `anchorPX48` together with `feeAskX24`
-- stale or impossible quotes return `0` output rather than executing
+Stale or impossible read-only quotes return zero output. Swap execution reverts instead.
 
-## Directional `Lx/Ly` Semantics
+## Directional Fee and Amount-Dependent Punishment
 
-Current PMM quote math is directional:
+The directional operator fee and slippage punishment are separate inputs to the execution price:
 
-- `X -> Y` execution depends on available `Y`-side liquidity
-- `Y -> X` execution depends on available `X`-side liquidity
+1. `feeBidX24` or `feeAskX24` supplies the currently stored directional fee.
+2. The current trade computes a reserve-relative linear `punishmentX24`.
+3. The two are added with saturation to obtain the current trade's `effectiveFeeX24`.
+4. The effective fee is charged from gross output.
 
-This means the pool can still quote one direction even when only one reserve side is available.
+Using Y-denominated wealth:
 
-That same directional model is mirrored off-chain in:
+```text
+inventoryWealth = xValueInY(reserveX) + reserveY
 
-- `pmm-math/curve-pmm-math`
+swapWealth = xValueInY(amountIn)   for X -> Y
+swapWealth = amountIn              for Y -> X
 
-## Practical Quote Guidance
+punishmentMaximumX24 =
+    2^24                 if maxPunishmentX24 == uint24.max
+    maxPunishmentX24     otherwise
 
-- use `quoteXToY` / `quoteYToX` when you already know direction and want `pNext` plus fee
-- use `quoteExactIn` when you want a simpler token-address-based integration
-- always check freshness indirectly through the returned output or directly via `state()` + `blockDelay()`
+rawPunishmentX24 = ceil(
+    punishmentMaximumX24 * min(swapWealth / inventoryWealth, 1)
+)
 
-## What Price Means For LP Flows
+punishmentX24 =
+    uint24.max           if rawPunishmentX24 >= 2^24
+    rawPunishmentX24     otherwise
 
-The operator-published `anchorPX48` drives both swap quoting and LP wealth valuation:
+effectiveFeeX24 = min(uint24.max, storedDirectionalFeeX24 + punishmentX24)
+```
+
+Consequences for integrators:
+
+- punishment is linear in the trade's share of active inventory wealth until it reaches the configured cap
+- the current quote already includes the current trade's punishment
+- after successful settlement, the increased fee is stored only in the traded direction and `PunishmentApplied(...)` is emitted
+- a reverted or impossible swap does not persist punishment
+- a later operator `upd(...)` replaces the anchor and both directional stored fees
+- `state().feeAskX24` / `state().feeBidX24` may therefore include punishment accumulated since the latest operator update
+- a non-whitelisted caller may additionally have `blacklistFeeMultiplier` applied to the complete effective fee
+
+The caller's `amountOutMinimum` is independent slippage protection. It is not part of the protocol punishment calculation.
+
+## Off-Chain Arithmetic
+
+Use `lunarbase-pmm-math` v0.4.0 for bit-exact quote, punishment, rounding, saturation, and reserve-transition behavior. Reimplementations must preserve the nested floors and ceiling used above; using floating point for execution values will not be bit-exact.
+
+## What Price Means for LP Flows
+
+The Q64.96 anchor also drives LP wealth valuation:
 
 - `executeDeposit(...)` uses the current normalized anchor price to mint `principalWealth`
-- `executeWithdrawal(...)` uses the current normalized anchor price as `P_settle`
+- `executeWithdrawal(...)` uses the current normalized anchor price as its settlement price
 - `claimFees(...)` uses the current normalized anchor price immediately
-
-So the pool's quote state is not only for swaps; it is also the valuation anchor for wealth-based LP settlement.

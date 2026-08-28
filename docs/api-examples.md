@@ -1,5 +1,7 @@
 # Dark Pools API - Integration Examples
 
+> **Contract version note:** the examples below demonstrate the hosted REST API and may use illustrative pairs. For the BNB Smart Chain v0.4.0 Pool address and contract ABI, use [`../mainnet/addresses.json`](../mainnet/addresses.json) and [`../abi/Pool.abi.json`](../abi/Pool.abi.json).
+
 ### JavaScript/TypeScript with Viem
 
 ```typescript

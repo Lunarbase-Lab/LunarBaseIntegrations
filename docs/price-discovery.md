@@ -1,8 +1,10 @@
 # Price Discovery and Slippage
 
-## On-Chain State
+The current Pool uses a fixed operator anchor with immediate, stateful directional
+punishment. Swaps do not move the anchor along a concentration curve. This guide
+describes the Pool's quote behavior and the `lunarbase-pmm-math` 0.4.1 API.
 
-The v0.4.0 pool state is operator-driven:
+## On-Chain State
 
 ```solidity
 function state()
@@ -15,108 +17,152 @@ function state()
         uint48 latestUpdateBlock
     );
 
-function anchorPrice() external view returns (uint160 anchorPrice);
+function anchorPrice() external view returns (uint160);
+function getXReserve() external view returns (uint112);
+function getYReserve() external view returns (uint112);
 function maxPunishmentX24() external view returns (uint24);
 function blockDelay() external view returns (uint48);
+function isFresh() external view returns (bool);
+function paused() external view returns (bool);
+function isWhitelisted(address account) external view returns (bool);
+function blacklistFeeMultiplier() external view returns (uint256);
 ```
 
-- `anchorPrice` is the operator-published sqrt-price in Q64.96 form: `floor(sqrt(P) * 2^96)`
-- `feeBidX24` is the stored X -> Y directional fee in Q24 format
-- `feeAskX24` is the stored Y -> X directional fee in Q24 format
-- `latestUpdateBlock` is the block in which operators last refreshed the state
-- `maxPunishmentX24` caps the amount-dependent punishment increment for a swap
-- `uint24.max` is treated as the sentinel for conceptual Q24 `100%`
+- `anchorPrice` is the Q64.96 sqrt-price: `floor(sqrt(Praw) * 2^96)`.
+- `feeBidX24` applies to X -> Y; `feeAskX24` applies to Y -> X. These stored
+  fees already include successful swaps' punishment since the last operator update.
+- Reserves are active inventory after reserved balances and global fee buckets
+  are excluded. Do not substitute the Pool's raw token balances.
+- `maxPunishmentX24` caps the increment requested by one trade; zero disables it.
+- Q24 uses denominator `2^24`. The largest stored `uint24`, `0xffffff`, is a
+  sentinel for conceptual 100% for fees and the maximum punishment.
+- `latestUpdateBlock` changes on operator `upd(...)`, not on a swap. Freshness is
+  strictly `block.number < latestUpdateBlock + blockDelay`; equality is stale.
 
-The Rust crate represents `anchorPrice` as `PoolParams.sqrt_price_x96: U256` because Rust has no native `uint160`; v0.4.0 validates that it fits the Solidity `uint160` domain.
+Read all fields from the same block and resolve whitelist status for the exact
+address that will call the Pool. See [Off-Chain Integration](offchain-integration.md).
 
 ## Price Conversion
 
-Let `S = anchorPrice` and `Q96 = 2^96`. The raw-unit price of X in Y is `(S / Q96)^2`.
+Let `S = anchorPrice` and `Q96 = 2^96`. The raw-unit price of X in Y is
+`Praw = (S / Q96)^2`. For display, Y tokens per X token is
+`Praw * 10^(decimalsX - decimalsY)`.
 
-The contract deliberately follows Solidity integer rounding at each multiplication/division step:
+Execution preserves two separate floor operations:
 
 ```text
 xValueInY(amountX) = floor(floor(amountX * S / Q96) * S / Q96)
 yValueInX(amountY) = floor(floor(amountY * Q96 / S) * Q96 / S)
 ```
 
-For tokens with different decimals, `P` is the raw-unit ratio. Apply token decimal normalization when converting it to a display price.
+Do not collapse either expression into a single division, use floating point,
+or round a displayed price back into an execution anchor. The library's
+`priceToSqrtPriceX96` / Rust `price_to_sqrt_price_x96` are lossy convenience
+helpers; use the exact on-chain anchor for quotes. A zero anchor yields zero
+quote output in both directions, without inverse division by zero.
 
-## Read-Only Quote Functions
+## Read-Only Quotes and Execution
 
 ```solidity
 function quoteXToY(uint256 dx)
-    external
-    view
-    returns (uint256 dy, uint160 pNext, uint256 fee);
+    external view returns (uint256 dy, uint160 pNext, uint256 fee);
 
 function quoteYToX(uint256 dy)
-    external
-    view
-    returns (uint256 dx, uint160 pNext, uint256 fee);
+    external view returns (uint256 dx, uint160 pNext, uint256 fee);
 
 function quoteExactIn(address tokenIn, address tokenOut, uint256 amountIn)
-    external
-    view
-    returns (uint256 amountOut);
+    external view returns (uint256 amountOut);
 ```
 
-In v0.4.0, conversion is linear at the operator anchor and `pNext` equals the unchanged `anchorPrice`. Amount-dependent execution impact is charged separately through punishment, as described below.
+`pNext` always equals the unchanged anchor. `fee` is denominated in the output
+token. Unlike the off-chain result, the public Solidity quote tuple does not
+return `effectiveFeeX24`.
 
-Stale or impossible read-only quotes return zero output. Swap execution reverts instead.
+The gross anchor-converted output must fit the output active reserve **before**
+fees are deducted. Gross output zero or above that reserve produces zero output
+and zero fee. A full effective fee also produces zero output, but returns the
+entire gross output as fee. Stale read-only quotes return `(0, anchorPrice, 0)`.
+Invalid token pairs and checked arithmetic failures can still revert.
 
-## Directional Fee and Amount-Dependent Punishment
+Public quote views do not check `paused()`: a positive quote can coexist with
+paused swaps. A positive quote also does not check input-reserve `uint112`
+headroom or predict token-transfer/accounting success. Executing a swap checks
+pause state, freshness, nonzero output, deadline and `amountOutMinimum`, and can
+revert in later settlement. The quote itself never mutates state.
 
-The directional operator fee and slippage punishment are separate inputs to the execution price:
+## Immediate Directional Punishment
 
-1. `feeBidX24` or `feeAskX24` supplies the currently stored directional fee.
-2. The current trade computes a reserve-relative linear `punishmentX24`.
-3. The two are added with saturation to obtain the current trade's `effectiveFeeX24`.
-4. The effective fee is charged from gross output.
-
-Using Y-denominated wealth:
+Compute the current trade's punishment from the **pre-swap active reserves**:
 
 ```text
+Q24 = 2^24
+MAX_U24 = Q24 - 1
 inventoryWealth = xValueInY(reserveX) + reserveY
-
 swapWealth = xValueInY(amountIn)   for X -> Y
 swapWealth = amountIn              for Y -> X
+maximum = Q24 if maxPunishmentX24 == MAX_U24 else maxPunishmentX24
 
-punishmentMaximumX24 =
-    2^24                 if maxPunishmentX24 == uint24.max
-    maxPunishmentX24     otherwise
-
-rawPunishmentX24 = ceil(
-    punishmentMaximumX24 * min(swapWealth / inventoryWealth, 1)
-)
-
-punishmentX24 =
-    uint24.max           if rawPunishmentX24 >= 2^24
-    rawPunishmentX24     otherwise
-
-effectiveFeeX24 = min(uint24.max, storedDirectionalFeeX24 + punishmentX24)
+rawDesired = ceil(maximum * min(swapWealth, inventoryWealth) / inventoryWealth)
+desiredPunishmentX24 = min(MAX_U24, rawDesired)
+effectiveFeeX24 = min(MAX_U24, storedDirectionalFeeX24 + desiredPunishmentX24)
 ```
 
-Consequences for integrators:
+Punishment is zero if input, configured maximum, anchor, inventory wealth or
+swap wealth is zero. Preserve the single ceiling operation above; do not
+integer-divide the wealth ratio first.
 
-- punishment is linear in the trade's share of active inventory wealth until it reaches the configured cap
-- the current quote already includes the current trade's punishment
-- after successful settlement, the increased fee is stored only in the traded direction and `PunishmentApplied(...)` is emitted
-- a reverted or impossible swap does not persist punishment
-- a later operator `upd(...)` replaces the anchor and both directional stored fees
-- `state().feeAskX24` / `state().feeBidX24` may therefore include punishment accumulated since the latest operator update
-- a non-whitelisted caller may additionally have `blacklistFeeMultiplier` applied to the complete effective fee
+The current trade is priced with `effectiveFeeX24`, including its own punishment.
+For an ordinary successful settlement, the traded direction stores that fee;
+the other direction is unchanged. The applied increment is
+`effectiveFeeX24 - storedDirectionalFeeX24`, which can be smaller than the desired
+increment because of saturation. `PunishmentApplied` is emitted only when a
+positive increment is actually stored. A reverted swap persists neither the
+increment nor the reserve changes.
 
-The caller's `amountOutMinimum` is independent slippage protection. It is not part of the protocol punishment calculation.
+Operator `upd(...)` replaces the anchor and both accumulated fees,
+starting a new pricing epoch. A swap's punishment does not refresh this epoch's
+block deadline.
 
-## Off-Chain Arithmetic
+## Fee Rounding and Caller Multiplier
 
-Use `lunarbase-pmm-math` v0.4.0 for bit-exact quote, punishment, rounding, saturation, and reserve-transition behavior. Reimplementations must preserve the nested floors and ceiling used above; using floating point for execution values will not be bit-exact.
+For the address seen by the Pool as `msg.sender`:
 
-## What Price Means for LP Flows
+```text
+multiplier = 1 if isWhitelisted(caller) else blacklistFeeMultiplier()
+```
 
-The Q64.96 anchor also drives LP wealth valuation:
+This may be a router or settlement contract, rather than the recipient or taker
+EOA. Set `from` to that caller for direct `eth_call` comparisons. The public
+`blacklistFeeMultiplier()` getter normalizes an unset stored zero to one.
 
-- `executeDeposit(...)` uses the current normalized anchor price to mint `principalWealth`
-- `executeWithdrawal(...)` uses the current normalized anchor price as its settlement price
-- `claimFees(...)` uses the current normalized anchor price immediately
+Fee deduction follows this order:
+
+```text
+if effectiveFeeX24 == MAX_U24:
+    fee = grossOutput
+else:
+    baseFee = floor(grossOutput * effectiveFeeX24 / Q24)
+    fee = baseFee                         if multiplier <= 1 or baseFee == 0
+    fee = min(grossOutput, baseFee * multiplier) otherwise
+    # Overflow of baseFee * multiplier also means fee = grossOutput.
+
+amountOut = grossOutput - fee
+```
+
+The multiplier is applied **after** flooring the base fee; multiplying Q24 fee
+units first changes rounding. `effectiveFeeX24` in off-chain results is the
+directional fee before the caller multiplier, and only that unmultiplied fee is
+persisted. For example, gross output `10000`, fee `floor(2^24 / 100) = 167772`
+and multiplier `3` produce base fee `99`, charged fee `297`, and output `9703`.
+
+The caller's `amountOutMinimum` is independent execution protection. It does not
+participate in protocol punishment or fee calculation.
+
+## Sequential Swaps
+
+Repeated quotes against an unchanged snapshot describe independent alternatives.
+They do not model a split execution: every successful chunk changes reserves and
+the traded directional fee. Chain successful simulations, using each resulting
+state for the next chunk. Under the current mechanism, splitting can increase
+aggregate output; summing unchanged-snapshot quotes is not a valid estimate of
+that effect. See [simulation APIs](offchain-integration.md#quotes-and-sequential-simulations).

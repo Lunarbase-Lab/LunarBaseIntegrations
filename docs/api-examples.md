@@ -1,541 +1,473 @@
-# Dark Pools API - Integration Examples
+# API and Swap Examples
 
-> **Contract version note:** the examples below demonstrate the hosted REST API and may use illustrative pairs. For the BNB Smart Chain v0.4.0 Pool address and contract ABI, use [`../mainnet/addresses.json`](../mainnet/addresses.json) and [`../abi/Pool.abi.json`](../abi/Pool.abi.json).
+These examples cover Base ETH/USDC quotes, native swaps, direct ERC-20 allowance and Permit2. Use a Partner API key for the hosted quote/calldata routes. Keep API keys and signing credentials in your server environment.
 
-### JavaScript/TypeScript with Viem
+The TypeScript swap helper loads [Pool.trading.abi.json](../abi/Pool.trading.abi.json) from the repository root and uses Viem 2.x. Set `API_BASE` to the intended host's `/api` URL, `LUNARBASE_API_KEY`, `BASE_RPC_URL`, and `PRIVATE_KEY` for the wallet examples. The quote-only examples do not require a signing key.
+
+## JavaScript / Node.js 18+
+
+Set `API_BASE` to the intended instance's `/api` URL and `LUNARBASE_API_KEY` to a Partner API key. Keep this key on the server.
+
+```javascript
+const apiBase = process.env.API_BASE?.replace(/\/$/, '');
+const apiKey = process.env.LUNARBASE_API_KEY;
+if (!apiBase || !apiKey) throw new Error('Set API_BASE and LUNARBASE_API_KEY');
+
+async function api(path, init = {}) {
+  const response = await fetch(`${apiBase}${path}`, {
+    ...init,
+    headers: {
+      'X-API-Key': apiKey,
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
+    },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${payload?.message ?? response.statusText}`);
+  }
+  if (!payload?.success) {
+    throw new Error(`${payload?.reason?.code ?? 'INVALID_RESPONSE'}: ${payload?.reason?.detail ?? ''}`);
+  }
+  return payload.data;
+}
+
+const tokenIn = '0x0000000000000000000000000000000000000000'; // native ETH
+const tokenOut = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC
+const pairs = await api('/quote/pairs');
+const matching = pairs.filter(({ tokens }) =>
+  tokens.tokenX.address.toLowerCase() === tokenIn.toLowerCase() &&
+  tokens.tokenY.address.toLowerCase() === tokenOut.toLowerCase());
+if (matching.length !== 1) throw new Error('Select a unique configured ETH/USDC pool');
+
+const query = new URLSearchParams({
+  symbol: matching[0].symbol,
+  tokenIn,
+  tokenOut,
+  amountIn: '1000000000000000000', // 1 ETH, eighteen decimals
+  slippageBps: '50',
+});
+const quote = await api(`/quote/exact-in?${query}`);
+const expectedPool = '0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99';
+if (quote.router.toLowerCase() !== expectedPool.toLowerCase()) {
+  throw new Error('Host returned a different pool');
+}
+console.log({
+  pool: quote.router,
+  amountOutRaw: BigInt(quote.amountOut),
+  minimumOutRaw: BigInt(quote.amountOutMinimum),
+  blockAge: quote.blockAge,
+});
+```
+
+The host may not list this pool yet. In that case, use the contract directly with the published ABI. A matching address alone does not identify a chain; select Base (`8453`) explicitly in the execution client.
+
+## Complete Swaps with TypeScript and Viem
+
+The helper discovers the hosted symbol and checks the expected Base pool. It obtains a fresh on-chain quote from the actual wallet caller, because a hosted quote uses multiplier one. `prepareSwap` returns both prices and a proposed minimum; `executeSwap` explicitly sends the prepared transaction after another simulation.
+
+Choose `encoding: 'local'` to encode with the ABI, or `'hosted'` to request `/approve/calldata` or `/permit/calldata`. Hosted encoding must preserve the requested swap and meet the caller-aware minimum. A hosted deadline-unit error stops preparation; switching to local encoding is an explicit choice, and deadlines always remain Unix seconds. See [API limitations](api.md#calldata-request).
+
+Pass `amountOutMinimum` when preserving a price limit already accepted by your caller. Preparation never lowers that value. Otherwise the proposed minimum comes from the caller-aware quote and the selected slippage. The initial hosted quote is informational.
 
 ```typescript
-import { createWalletClient, http, parseEther } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
+import { readFileSync } from 'node:fs';
+import {
+  createPublicClient, createWalletClient, encodeFunctionData, erc20Abi,
+  http, isAddressEqual, parseAbi, zeroAddress,
+  type Abi, type Account, type Address, type Hex,
+} from 'viem';
+import { base } from 'viem/chains';
 
-const API_BASE = "https://api.yourdomain.com/api";
+// Run from this repository's root. No code below runs a transaction on import.
+const poolAbi = JSON.parse(readFileSync('abi/Pool.trading.abi.json', 'utf8')) as Abi;
+export const POOL = '0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99' as const;
+export const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+const PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const;
+const bitmapAbi = parseAbi(['function nonceBitmap(address owner, uint256 word) view returns (uint256)']);
+const permitTypes = {
+  TokenPermissions: [{ name: 'token', type: 'address' }, { name: 'amount', type: 'uint256' }],
+  PermitTransferFrom: [
+    { name: 'permitted', type: 'TokenPermissions' }, { name: 'spender', type: 'address' },
+    { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' },
+  ],
+} as const;
 
-const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
-const CURVE_PMM_PERIPHERY = "0xActualRouterAddress";
+type Flow = 'native' | 'approve' | 'permit2';
+type Pair = { symbol: string; tokens: { tokenX: { address: Address }; tokenY: { address: Address } } };
+type Quote = {
+  symbol: string; router: Address; tokenIn: Address; tokenOut: Address;
+  amountIn: string; amountOut: string; amountOutMinimum: string; callData?: Hex;
+};
+type Options = {
+  flow: Flow; amountIn: bigint; slippageBps: number; recipient: Address;
+  encoding: 'local' | 'hosted'; amountOutMinimum?: bigint; ttlSeconds?: number;
+  permitNonce?: bigint;
+};
+type Prepared = {
+  to: typeof POOL; data: Hex; value: bigint; caller: Address; deadline: bigint;
+  amountOutMinimum: bigint; callerAmountOut: bigint; hostedAmountOut: bigint; permitNonce?: bigint;
+};
+const uint = (value: string) => {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new Error('Expected unsigned decimal integer');
+  const result = BigInt(value);
+  if (result >= 1n << 256n) throw new Error('Integer exceeds uint256');
+  return result;
+};
+const maximum = (...values: bigint[]) => values.reduce((a, b) => a > b ? a : b);
 
-// Permit2 signature helper
-async function signPermit2Transfer(
-	account: Account,
-	permit: {
-		permitted: {
-			token: string;
-			amount: string;
-		};
-		spender: string;
-		nonce: string;
-		deadline: number;
-	},
-	chainId: number,
-): Promise<string> {
-	return await account.signTypedData({
-		domain: {
-			name: "Permit2",
-			chainId,
-			verifyingContract: PERMIT2,
-		},
-		types: {
-			TokenPermissions: [
-				{ name: "token", type: "address" },
-				{ name: "amount", type: "uint256" },
-			],
-			PermitTransferFrom: [
-				{ name: "permitted", type: "TokenPermissions" },
-				{ name: "spender", type: "address" },
-				{ name: "nonce", type: "uint256" },
-				{ name: "deadline", type: "uint256" },
-			],
-		},
-		primaryType: "PermitTransferFrom",
-		message: {
-			permitted: {
-				token: permit.permitted.token,
-				amount: BigInt(permit.permitted.amount),
-			},
-			spender: CURVE_PMM_PERIPHERY,
-			nonce: BigInt(permit.nonce),
-			deadline: BigInt(permit.deadline),
-		},
-	});
-}
+export function createSwapExample(config: {
+  apiBase: string; apiKey: string; rpcUrl: string; account: Account;
+  // Atomically reserve the key; production storage must survive workers/restarts.
+  // Keep it reserved while any signature can still execute; the API reserves nothing.
+  reserveNonce?: (key: string) => Promise<boolean>;
+}) {
+  const { account } = config;
+  const rpc = createPublicClient({ chain: base, transport: http(config.rpcUrl) });
+  const wallet = createWalletClient({ chain: base, account, transport: http(config.rpcUrl) });
+  async function api<T>(path: string, body?: object): Promise<T> {
+    const response = await fetch(`${config.apiBase.replace(/\/$/, '')}${path}`, {
+      method: body ? 'POST' : 'GET', signal: AbortSignal.timeout(15_000),
+      headers: { 'X-API-Key': config.apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${JSON.stringify(payload?.message ?? response.statusText)}`);
+    if (!payload?.success) throw new Error(`${payload?.reason?.code ?? 'INVALID_RESPONSE'}: ${payload?.reason?.detail ?? ''}`);
+    return payload.data as T;
+  }
+  async function checkChain() {
+    if (await rpc.getChainId() !== base.id || await wallet.getChainId() !== base.id) {
+      throw new Error('Both clients must use Base (8453)');
+    }
+  }
+  async function unusedNonce(nonce: bigint) {
+    if (nonce < 0n || nonce >= 1n << 256n) throw new Error('Invalid Permit2 nonce');
+    const bitmap = await rpc.readContract({
+      address: PERMIT2, abi: bitmapAbi, functionName: 'nonceBitmap',
+      args: [account.address, nonce >> 8n],
+    });
+    if ((bitmap & (1n << (nonce & 255n))) !== 0n) throw new Error('Permit2 nonce already consumed');
+  }
+  async function receipt(hash: Hex) {
+    const result = await rpc.waitForTransactionReceipt({ hash });
+    if (result.status !== 'success') throw new Error(`Transaction reverted: ${hash}`);
+    return result;
+  }
 
-// Get quote
-async function getQuote(tokenIn: string, tokenOut: string, amountIn: string, slippageBps: number = 50) {
-	const params = new URLSearchParams({
-		tokenIn,
-		tokenOut,
-		amountIn,
-		slippageBps: slippageBps.toString(),
-	});
+  // Explicitly broadcasts approval(s). Call BEFORE preparing a quote/signature.
+  // Native ETH input needs no approval; approve USDC to the Pool or to Permit2.
+  async function approveUsdc(flow: 'approve' | 'permit2', amountIn: bigint) {
+    if (amountIn <= 0n) throw new Error('amountIn must be positive');
+    await checkChain();
+    const spender = flow === 'permit2' ? PERMIT2 : POOL;
+    const allowance = await rpc.readContract({
+      address: USDC, abi: erc20Abi, functionName: 'allowance', args: [account.address, spender],
+    });
+    if (allowance >= amountIn) return;
+    for (const amount of allowance > 0n ? [0n, amountIn] : [amountIn]) {
+      const { request } = await rpc.simulateContract({
+        account, address: USDC, abi: erc20Abi, functionName: 'approve', args: [spender, amount],
+      });
+      await receipt(await wallet.writeContract(request));
+    }
+  }
 
-	const response = await fetch(`${API_BASE}/quote/exact-in?${params}`);
-	const data = await response.json();
+  async function prepareSwap(options: Options): Promise<Prepared> {
+    const { flow, amountIn, slippageBps, recipient, encoding } = options;
+    const ttl = options.ttlSeconds ?? 120;
+    if (amountIn <= 0n || amountIn >= 1n << 256n || !Number.isInteger(slippageBps)
+        || slippageBps < 1 || slippageBps > 9999 || !Number.isInteger(ttl) || ttl < 1 || ttl > 3600
+        || (options.amountOutMinimum ?? 0n) < 0n || isAddressEqual(recipient, zeroAddress)) {
+      throw new Error('Invalid amount, slippage, recipient or validity window');
+    }
+    await checkChain();
+    const [x, y] = await Promise.all(['X', 'Y'].map(functionName => rpc.readContract({
+      address: POOL, abi: poolAbi, functionName,
+    }) as Promise<Address>));
+    if (!isAddressEqual(x, zeroAddress) || !isAddressEqual(y, USDC)) throw new Error('Unexpected on-chain pair');
+    const pairs = await api<Pair[]>('/quote/pairs');
+    const matching = pairs.filter(p => isAddressEqual(p.tokens.tokenX.address, zeroAddress)
+      && isAddressEqual(p.tokens.tokenY.address, USDC));
+    if (matching.length !== 1) throw new Error('Select one configured Base ETH/USDC symbol');
+    const tokenIn = flow === 'native' ? zeroAddress : USDC;
+    const tokenOut = flow === 'native' ? USDC : zeroAddress;
+    const fields = { symbol: matching[0].symbol, tokenIn, tokenOut, amountIn: amountIn.toString(), slippageBps };
+    const query = new URLSearchParams(Object.entries(fields).map(([key, value]) => [key, String(value)]));
+    function validateQuote(q: Quote) {
+      if (!isAddressEqual(q.router, POOL) || q.symbol !== fields.symbol
+          || !isAddressEqual(q.tokenIn, tokenIn) || !isAddressEqual(q.tokenOut, tokenOut)
+          || uint(q.amountIn) !== amountIn || uint(q.amountOutMinimum) === 0n
+          || uint(q.amountOutMinimum) > uint(q.amountOut)) throw new Error('Quote does not match request');
+    }
+    const quote = await api<Quote>(`/quote/exact-in?${query}`);
+    validateQuote(quote);
+    // The hosted quote uses multiplier 1. eth_call.from selects this wallet's fee.
+    const callerAmountOut = await rpc.readContract({
+      account: account.address, address: POOL, abi: poolAbi, functionName: 'quoteExactIn',
+      args: [tokenIn, tokenOut, amountIn],
+    }) as bigint;
+    // The caller-aware quote sets the proposed floor; the REST quote is informational.
+    // Inspect the returned quote/minimum before explicitly calling executeSwap.
+    const floor = maximum(options.amountOutMinimum ?? 0n,
+      callerAmountOut * BigInt(10_000 - slippageBps) / 10_000n);
+    if (floor === 0n) throw new Error('Minimum output rounded to zero');
+    const deadline = (await rpc.getBlock()).timestamp + BigInt(ttl); // Unix SECONDS
+    if (deadline > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Deadline exceeds safe JSON integer range');
+    let permit: { permitted: { token: Address; amount: bigint }; nonce: bigint; deadline: bigint } | undefined;
+    let signature: Hex | undefined;
+    if (flow === 'permit2') {
+      if (!config.reserveNonce) throw new Error('Provide an atomic nonce reservation function');
+      const nonce = options.permitNonce ?? uint((await api<{ nonce: string }>(
+        `/quote/permit2/nonce?signer=${account.address}`)).nonce);
+      if (encoding === 'hosted' && nonce > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new Error('Hosted JSON nonce exceeds safe integer range; choose local encoding explicitly');
+      }
+      await unusedNonce(nonce);
+      const key = `${base.id}:${PERMIT2.toLowerCase()}:${account.address.toLowerCase()}:${nonce}`;
+      if (!await config.reserveNonce(key)) throw new Error('Nonce reserved; coordinate a different unused nonce');
+      permit = { permitted: { token: USDC, amount: amountIn }, nonce, deadline };
+      signature = await wallet.signTypedData({
+        domain: { name: 'Permit2', chainId: base.id, verifyingContract: PERMIT2 },
+        types: permitTypes, primaryType: 'PermitTransferFrom', message: { ...permit, spender: POOL },
+      });
+    }
+    function encode(amountOutMinimum: bigint) {
+      const params = { tokenIn, tokenOut, recipient, amountIn, amountOutMinimum, deadline };
+      return flow === 'native'
+        ? encodeFunctionData({ abi: poolAbi, functionName: 'swapExactInNative', args: [tokenOut, recipient, amountOutMinimum, deadline] })
+        : encodeFunctionData({ abi: poolAbi, functionName: 'swapExactIn', args: permit ? [params, permit, signature] : [params] });
+    }
+    let amountOutMinimum = floor;
+    let data = encode(floor);
+    if (encoding === 'hosted') {
+      // A seconds/milliseconds bug may reject this request. Do not change units or silently retry locally.
+      const encoded = await api<Quote>(`/quote/exact-in/${permit ? 'permit' : 'approve'}/calldata`, {
+        ...fields, recipient, deadline: Number(deadline),
+        ...(permit ? { permit2Nonce: Number(permit.nonce), permit2Signature: signature } : {}),
+      });
+      validateQuote(encoded);
+      amountOutMinimum = uint(encoded.amountOutMinimum);
+      if (amountOutMinimum < floor) throw new Error('Hosted calldata weakens the minimum; prepare a new explicit local request');
+      if (encoded.callData?.toLowerCase() !== encode(amountOutMinimum).toLowerCase()) {
+        throw new Error('Hosted calldata differs from the requested swap');
+      }
+      data = encoded.callData;
+    }
+    const prepared = { to: POOL, data, value: flow === 'native' ? amountIn : 0n,
+      caller: account.address, deadline, amountOutMinimum, callerAmountOut,
+      hostedAmountOut: uint(quote.amountOut), permitNonce: permit?.nonce };
+    // Includes actual allowance, balance, recipient ETH acceptance and Pool state checks.
+    await rpc.call({ account: account.address, to: POOL, data, value: prepared.value });
+    return prepared;
+  }
 
-	// Check HTTP status
-	if (!response.ok) {
-		throw new Error(`HTTP ${data.statusCode}: ${data.message}`);
-	}
-
-	// Check business logic success
-	if (!data.success) {
-		const { code, detail, extra } = data.reason;
-		throw new Error(`${code}: ${detail}${extra ? ` (${JSON.stringify(extra)})` : ""}`);
-	}
-
-	return data.data;
-}
-
-// Execute swap
-async function executeSwap(
-	walletClient: WalletClient,
-	account: Account,
-	tokenIn: string,
-	tokenOut: string,
-	amountIn: string,
-	recipient: string,
-	slippageBps: number = 50,
-) {
-	const deadline = Math.floor(Date.now() / 1000) + 300; // +5 minutes
-	const isNative = tokenIn === "0x0000000000000000000000000000000000000000";
-
-	let permit2Nonce: string | undefined;
-	let permit2Signature: string | undefined;
-
-	// Get Permit2 signature only for ERC20 tokens
-	if (!isNative) {
-		// 1. Get nonce
-		const nonceResp = await fetch(`${API_BASE}/quote/permit2/nonce?signer=${account.address}`);
-		const nonceData = await nonceResp.json();
-
-		if (!nonceData.success) {
-			throw new Error("Failed to get nonce");
-		}
-
-		permit2Nonce = parseInt(nonceData.data.nonce);
-
-		// 2. Sign Permit2
-		permit2Signature = await signPermit2Transfer(
-			account,
-			{
-				permitted: {
-					token: tokenIn,
-					amount: amountIn,
-				},
-				spender: CURVE_PMM_PERIPHERY,
-				nonce: nonceData.data.nonce,
-				deadline,
-			},
-			walletClient.chain.id,
-		);
-	}
-
-	// 3. Get calldata
-	const calldataResp = await fetch(`${API_BASE}/quote/exact-in/calldata`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			recipient,
-			tokenIn,
-			tokenOut,
-			amountIn,
-			slippageBps,
-			deadline,
-			...(permit2Nonce !== undefined && { permit2Nonce }),
-			...(permit2Signature && { permit2Signature }),
-		}),
-	});
-
-	const calldataData = await calldataResp.json();
-
-	if (!calldataResp.ok) {
-		throw new Error(`HTTP ${calldataData.statusCode}: ${calldataData.message}`);
-	}
-
-	if (!calldataData.success) {
-		const { code, detail } = calldataData.reason;
-		throw new Error(`${code}: ${detail}`);
-	}
-
-	// 4. Execute transaction
-	const hash = await walletClient.sendTransaction({
-		account,
-		to: calldataData.data.router,
-		data: calldataData.data.callData,
-		value: isNative ? BigInt(amountIn) : 0n,
-	});
-
-	return hash;
-}
-
-// Example usage
-async function main() {
-	const account = privateKeyToAccount("0x...");
-	const client = createWalletClient({
-		account,
-		chain: base,
-		transport: http(),
-	});
-
-	try {
-		// Get quote for 1 ETH -> USDC
-		const quote = await getQuote(
-			"0x0000000000000000000000000000000000000000", // ETH
-			"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC
-			parseEther("1").toString(),
-			50, // 0.5% slippage
-		);
-
-		console.log("Quote:", {
-			amountOut: quote.amountOut,
-			amountOutMinimum: quote.amountOutMinimum,
-			blockAge: quote.blockAge,
-		});
-
-		// Execute swap
-		const hash = await executeSwap(
-			client,
-			account,
-			quote.tokenIn,
-			quote.tokenOut,
-			quote.amountIn,
-			account.address,
-			50,
-		);
-
-		console.log("Transaction hash:", hash);
-	} catch (error) {
-		console.error("Error:", error.message);
-	}
+  // Explicitly broadcasts exactly the prepared call after re-simulation.
+  async function executeSwap(prepared: Prepared) {
+    await checkChain();
+    if (!isAddressEqual(prepared.caller, account.address) || !isAddressEqual(prepared.to, POOL)) {
+      throw new Error('Prepared call belongs to another wallet or pool');
+    }
+    if ((await rpc.getBlock()).timestamp >= prepared.deadline) throw new Error('Prepare a new quote: deadline reached');
+    if (prepared.permitNonce !== undefined) await unusedNonce(prepared.permitNonce);
+    const transaction = { account, to: POOL, data: prepared.data, value: prepared.value };
+    await rpc.call(transaction);
+    return receipt(await wallet.sendTransaction(transaction));
+  }
+  return { prepareSwap, approveUsdc, executeSwap };
 }
 ```
 
-### Python
+### Using the three payment flows
+
+Put the following code after the helper. Calling `approveUsdc` can send approval transactions; calling `executeSwap` sends the swap. The three functions below show explicit usage and are not invoked automatically.
+
+The in-memory nonce reservation below is limited to one process session. Coordinate a durable reservation store across production workers and restarts, and keep a nonce reserved while its signature can still execute. The nonce endpoint only finds an unused bitmap bit. If a signed preparation fails, allocate another unused, unreserved nonce through `permitNonce` rather than assuming the previous signature disappeared.
+
+```typescript
+import { privateKeyToAccount } from 'viem/accounts';
+// Put this after createSwapExample in the same TypeScript file.
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as Hex);
+const reserved = new Set<string>(); // Only for this single-process example session.
+const swaps = createSwapExample({
+  account,
+  apiBase: process.env.API_BASE!,
+  apiKey: process.env.LUNARBASE_API_KEY!,
+  rpcUrl: process.env.BASE_RPC_URL!,
+  reserveNonce: async key => {
+    if (reserved.has(key)) return false;
+    reserved.add(key);
+    return true;
+  },
+});
+
+// These functions broadcast only when you explicitly call one of them.
+async function nativeEthToUsdc() {
+  const prepared = await swaps.prepareSwap({
+    flow: 'native', amountIn: 1_000_000_000_000_000n, // 0.001 ETH
+    recipient: account.address, slippageBps: 50, encoding: 'local',
+  });
+  console.log(prepared.callerAmountOut, prepared.amountOutMinimum);
+  return swaps.executeSwap(prepared);
+}
+
+async function usdcToEthWithApprove() {
+  const amountIn = 1_000_000n; // 1 USDC
+  await swaps.approveUsdc('approve', amountIn);
+  const prepared = await swaps.prepareSwap({
+    flow: 'approve', amountIn, recipient: account.address,
+    slippageBps: 50, encoding: 'local',
+  });
+  console.log(prepared.callerAmountOut, prepared.amountOutMinimum);
+  return swaps.executeSwap(prepared);
+}
+
+async function usdcToEthWithPermit2() {
+  const amountIn = 1_000_000n;
+  await swaps.approveUsdc('permit2', amountIn);
+  const prepared = await swaps.prepareSwap({
+    flow: 'permit2', amountIn, recipient: account.address,
+    slippageBps: 50, encoding: 'local',
+  });
+  console.log(prepared.callerAmountOut, prepared.amountOutMinimum);
+  return swaps.executeSwap(prepared);
+}
+```
+
+Native input sends `value = amountIn`. Both USDC-input paths send `value = 0` and receive native ETH. Direct allowance targets the Pool; the Permit2 path targets Permit2 for allowance and the Pool as the signature's spender. Approve first and prepare the price afterward, so approval confirmation does not age the swap quote.
+
+## Python 3 + requests
 
 ```python
+import os
 import requests
-from typing import Optional
-from eth_account import Account
-from eth_account.messages import encode_structured_data
 
-API_BASE = 'https://api.yourdomain.com/api'
-PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
-CURVE_PMM_PERIPHERY = '0xYourRouterAddress'
+api_base = os.environ["API_BASE"].rstrip("/")
+api_key = os.environ["LUNARBASE_API_KEY"]
 
-def sign_permit2_transfer(
-    account: Account,
-    token: str,
-    amount: str,
-    nonce: str,
-    deadline: int,
-    chain_id: int
-) -> str:
-    """Sign Permit2 transfer"""
-    message = {
-        'domain': {
-            'name': 'Permit2',
-            'chainId': chain_id,
-            'verifyingContract': PERMIT2,
-        },
-        'types': {
-            'EIP712Domain': [
-                {'name': 'name', 'type': 'string'},
-                {'name': 'chainId', 'type': 'uint256'},
-                {'name': 'verifyingContract', 'type': 'address'},
-            ],
-            'TokenPermissions': [
-                {'name': 'token', 'type': 'address'},
-                {'name': 'amount', 'type': 'uint256'},
-            ],
-            'PermitTransferFrom': [
-                {'name': 'permitted', 'type': 'TokenPermissions'},
-                {'name': 'spender', 'type': 'address'},
-                {'name': 'nonce', 'type': 'uint256'},
-                {'name': 'deadline', 'type': 'uint256'},
-            ],
-        },
-        'primaryType': 'PermitTransferFrom',
-        'message': {
-            'permitted': {
-                'token': token,
-                'amount': int(amount),
-            },
-            'spender': CURVE_PMM_PERIPHERY,
-            'nonce': int(nonce),
-            'deadline': deadline,
-        },
-    }
-
-    encoded = encode_structured_data(message)
-    signed = account.sign_message(encoded)
-    return signed.signature.hex()
-
-def get_quote(
-    token_in: str,
-    token_out: str,
-    amount_in: str,
-    slippage_bps: int = 50
-):
-    """Get swap quote"""
-    params = {
-        'tokenIn': token_in,
-        'tokenOut': token_out,
-        'amountIn': amount_in,
-        'slippageBps': slippage_bps,
-    }
-
-    response = requests.get(f'{API_BASE}/quote/exact-in', params=params)
-    data = response.json()
-
-    # Check HTTP status
-    if not response.ok:
-        raise Exception(f"HTTP {data['statusCode']}: {data['message']}")
-
-    # Check business logic
-    if not data['success']:
-        reason = data['reason']
-        raise Exception(f"{reason['code']}: {reason['detail']}")
-
-    return data['data']
-
-# Example usage
-if __name__ == '__main__':
-    quote = get_quote(
-        '0x0000000000000000000000000000000000000000',  # ETH
-        '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',  # USDC
-        '1000000000000000000',  # 1 ETH
-        50  # 0.5% slippage
+def api(path, params=None):
+    response = requests.get(
+        f"{api_base}{path}", params=params,
+        headers={"X-API-Key": api_key}, timeout=15,
     )
+    response.raise_for_status()
+    payload = response.json()
+    if not payload.get("success"):
+        reason = payload.get("reason", {})
+        raise RuntimeError(f"{reason.get('code')}: {reason.get('detail', '')}")
+    return payload["data"]
 
-    print(f'Quote: {quote}')
+token_in = "0x0000000000000000000000000000000000000000"
+token_out = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+pairs = [p for p in api("/quote/pairs")
+         if p["tokens"]["tokenX"]["address"].lower() == token_in.lower()
+         and p["tokens"]["tokenY"]["address"].lower() == token_out.lower()]
+if len(pairs) != 1:
+    raise RuntimeError("Select a unique configured ETH/USDC pool")
+quote = api("/quote/exact-in", {
+    "symbol": pairs[0]["symbol"], "tokenIn": token_in, "tokenOut": token_out,
+    "amountIn": "1000000000000000000", "slippageBps": 50,
+})
+if quote["router"].lower() != "0x0000efc4ec03a7c47d3a38a9be7ff1d52dd01b99":
+    raise RuntimeError("Host returned a different pool")
+print(int(quote["amountOut"]), int(quote["amountOutMinimum"]))
 ```
 
----
+### Signing Permit2 in Python
 
-## Best Practices
+Install `eth-account` in addition to `requests`. This helper uses [`encode_typed_data`](https://eth-account.readthedocs.io/en/stable/eth_account.html#eth_account.messages.encode_typed_data) and returns a 65-byte hex signature for Base USDC input. The account signing must also be the immediate Pool caller. Obtain and reserve an unused Permit2 nonce before signing; the same nonce-coordination rules apply as in the TypeScript flow.
 
-### 1. Error Handling
+```python
+from eth_account.messages import encode_typed_data
 
-```typescript
-// Always check both HTTP status AND success field
-const response = await fetch(url);
-const data = await response.json();
+PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+POOL = "0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99"
+USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 
-if (!response.ok) {
-	// HTTP error (400, 500)
-	throw new Error(`HTTP ${data.statusCode}: ${data.message}`);
-}
 
-if (!data.success) {
-	// Business logic error (200 with success: false)
-	const { code, detail } = data.reason;
-	throw new Error(`${code}: ${detail}`);
-}
+def uint256(value):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError("Use an integer or decimal string")
+    if isinstance(value, str) and (not value or not value.isascii() or not value.isdecimal()):
+        raise ValueError("Use an unsigned decimal string")
+    result = int(value)
+    if not 0 <= result < 2**256:
+        raise ValueError("Value does not fit uint256")
+    return result
 
-// Now safe to use data.data
-```
 
-### 7. Permit2 Nonce Management
+def sign_permit2_transfer(account, amount_in, nonce, deadline):
+    """Authorize this account's Base USDC transfer to the Pool spender."""
+    amount_in, nonce, deadline = map(uint256, (amount_in, nonce, deadline))
+    if not (0 < amount_in < 2**256 and 0 <= nonce < 2**256 and 0 < deadline < 2**256):
+        raise ValueError("Invalid Permit2 integer")
+    signable = encode_typed_data(
+        domain_data={"name": "Permit2", "chainId": 8453, "verifyingContract": PERMIT2},
+        message_types={
+            "TokenPermissions": [
+                {"name": "token", "type": "address"},
+                {"name": "amount", "type": "uint256"},
+            ],
+            "PermitTransferFrom": [
+                {"name": "permitted", "type": "TokenPermissions"},
+                {"name": "spender", "type": "address"},
+                {"name": "nonce", "type": "uint256"},
+                {"name": "deadline", "type": "uint256"},
+            ],
+        },
+        message_data={
+            "permitted": {"token": USDC, "amount": amount_in},
+            "spender": POOL,
+            "nonce": nonce,
+            "deadline": deadline,
+        },
+    )
+    return "0x" + bytes(account.sign_message(signable).signature).hex()
 
-**Don't** request nonce from API for every swap:
 
-```typescript
-❌ // Bad: API call for each swap
-for (const swap of swaps) {
-  const { nonce } = await getNonce(signer);
-  await executeSwap(..., nonce, ...);
-}
-```
-
-**Do** fetch once and increment locally:
-
-```typescript
-✅ // Good: Fetch once, increment locally
-let currentNonce = await getNonce(signer);
-
-for (const swap of swaps) {
-  const signature = await signPermit2(account, {
-    token: swap.tokenIn,
-    amount: swap.amountIn,
-    nonce: currentNonce.toString(),
-    deadline,
-  });
-
-  await executeSwap(..., currentNonce, signature);
-
-  currentNonce++; // Increment locally
-}
-```
-
-**Production approach with Redis:**
-
-```typescript
-import Redis from 'ioredis';
-
-class Permit2NonceManager {
-  private redis: Redis;
-  private cacheKey = (signer: string) => `permit2:nonce:${signer.toLowerCase()}`;
-
-  constructor(redis: Redis) {
-    this.redis = redis;
-  }
-
-  /**
-   * Get current nonce (from cache or API)
-   */
-  async getNonce(signer: string): Promise {
-    // Try cache first
-    const cached = await this.redis.get(this.cacheKey(signer));
-    if (cached !== null) {
-      return parseInt(cached);
+def permit_calldata_payload(account, symbol, amount_in, nonce, deadline, slippage_bps=50):
+    """Body for POST /quote/exact-in/permit/calldata, after reserving the nonce."""
+    nonce, deadline = map(uint256, (nonce, deadline))
+    # This REST endpoint accepts JSON numbers; keep compatibility with its JS parser.
+    if not 0 <= nonce <= 2**53 - 1 or deadline > 2**53 - 1:
+        raise ValueError("Nonce or deadline is too large for REST; encode the call directly")
+    if type(slippage_bps) is not int or not 1 <= slippage_bps <= 9999:
+        raise ValueError("slippage_bps must be an integer from 1 to 9999")
+    return {
+        "symbol": symbol,
+        "recipient": account.address,
+        "tokenIn": USDC,
+        "tokenOut": "0x0000000000000000000000000000000000000000",
+        "amountIn": str(uint256(amount_in)),
+        "slippageBps": slippage_bps,
+        "deadline": deadline,
+        "permit2Nonce": nonce,
+        "permit2Signature": sign_permit2_transfer(account, amount_in, nonce, deadline),
     }
+```
 
-    // Fetch from API
-    const response = await fetch(
-      `${API_BASE}/quote/permit2/nonce?signer=${signer}`
-    );
-    const data = await response.json();
+`permit_calldata_payload(...)` returns the JSON body for `/quote/exact-in/permit/calldata`. Supply a discovered symbol, raw USDC amount, reserved nonce and Unix-second deadline. The payload binds the Permit2 token/amount and Pool spender; it does not replace output protection. Verify the returned router and calldata, apply the caller-aware minimum, and simulate before submission as shown in the TypeScript flow. ERC-20 allowance to Permit2 is still required.
 
-    if (!data.success) {
-      throw new Error('Failed to get nonce');
-    }
+## Retrying Rate-Limited API Requests
 
-    const nonce = parseInt(data.data.nonce);
+Use a bounded retry for HTTP 429 and respect `Retry-After`. Other HTTP errors and business-error envelopes still need the handling shown above. This helper retries API requests; do not use it to blindly resend transactions or allocate a new nonce while an earlier signature or transaction may still execute.
 
-    // Cache with 1 hour TTL
-    await this.redis.setex(this.cacheKey(signer), 3600, nonce.toString());
-
-    return nonce;
+```javascript
+export async function fetchWithRateLimitRetry(url, init = {}, attempts = 3) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt === attempts - 1) return response;
+    const retryAfter = response.headers.get('Retry-After');
+    const seconds = retryAfter === null ? NaN : Number(retryAfter);
+    const date = retryAfter === null ? NaN : Date.parse(retryAfter);
+    const waitMs = Number.isFinite(seconds) && seconds >= 0
+      ? seconds * 1000
+      : Number.isFinite(date) ? Math.max(0, date - Date.now()) : 1000;
+    await response.body?.cancel();
+    await new Promise(resolve => setTimeout(resolve, waitMs));
   }
-
-  /**
-   * Get next nonce and increment in cache
-   */
-  async getNextNonce(signer: string): Promise {
-    const key = this.cacheKey(signer);
-
-    // Try atomic increment
-    const nonce = await this.redis.incr(key);
-
-    // If first time (nonce === 1), fetch from API
-    if (nonce === 1) {
-      const actualNonce = await this.getNonce(signer);
-      await this.redis.setex(key, 3600, actualNonce.toString());
-      return actualNonce;
-    }
-
-    // Refresh TTL
-    await this.redis.expire(key, 3600);
-
-    return nonce - 1; // Return value before increment
-  }
-
-  /**
-   * Reset cache (use when nonce mismatch detected)
-   */
-  async resetNonce(signer: string): Promise {
-    await this.redis.del(this.cacheKey(signer));
-  }
-}
-
-// Usage
-const nonceManager = new Permit2NonceManager(redis);
-
-async function executeMultipleSwaps(swaps: Swap[]) {
-  for (const swap of swaps) {
-    try {
-      const nonce = await nonceManager.getNextNonce(signer);
-
-      const signature = await signPermit2Transfer(
-        account,
-        { ...swap, nonce: nonce.toString(), deadline },
-        chainId
-      );
-
-      await executeSwap(..., nonce, signature);
-
-    } catch (error) {
-      if (error.message.includes('nonce')) {
-        // Reset cache on nonce mismatch
-        await nonceManager.resetNonce(signer);
-        throw error;
-      }
-    }
-  }
+  throw new Error('attempts must be positive');
 }
 ```
 
-**Why this matters:**
-
-- Reduces API calls: 1 instead of N for N swaps
-- Faster execution: no network roundtrip
-- Rate limit friendly: stays within 100 req/min easily
-- Handles concurrent swaps correctly with Redis atomic operations
-
-**Important:** Always handle nonce mismatch errors by resetting cache and refetching from API.
-
-````
-
-### 3. Slippage
-
-```typescript
-const SLIPPAGE = {
-  LOW: 10,      // 0.1% - for stable pairs
-  MEDIUM: 50,   // 0.5% - standard
-  HIGH: 100,    // 1.0% - for volatile pairs
-  MAX: 500,     // 5.0% - maximum for large trades
-};
-````
-
-### 4. Deadline
-
-```typescript
-// Always use deadline for MEV protection
-const DEADLINE_OFFSET = 5 * 60; // 5 minutes
-
-function getDeadline(): number {
-	return Math.floor(Date.now() / 1000) + DEADLINE_OFFSET;
-}
-```
-
-### 5. BigInt Handling
-
-```typescript
-// API returns amounts as strings to support BigInt
-const amountOut = BigInt(quote.amountOut); // ✅
-const amountOut = parseInt(quote.amountOut); // ❌ precision loss
-
-// Format for display
-function formatAmount(amount: string, decimals: number): string {
-	const value = BigInt(amount);
-	const divisor = BigInt(10 ** decimals);
-	return (Number(value) / Number(divisor)).toFixed(decimals);
-}
-```
-
-### 6. Rate Limiting with Retry
-
-```typescript
-async function fetchWithRetry(url: string, maxRetries = 3) {
- for (let i = 0; i < maxRetries; i++) {
-  const response = await fetch(url);
-
-  if (response.status === 429) {
-   const retryAfter = parseInt(response.headers.get("Retry-After") || "60");
-   await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
-   continue;
-  }
-
-  return response;
- }
-
- throw new Error("Max retries exceeded"
-
-    return response;
-  }
-
-  throw new Error('Max retries exceeded');
-}
-```
-
-**Rate Limit Increase:**
-Contact us for Partner API key with higher limits.
+All token amounts remain decimal strings or `bigint` in JavaScript and integers in Python. Slippage uses basis points with denominator 10,000; it is separate from the Pool's Q24 fee scale. A deadline limits time, while `amountOutMinimum` limits execution price.

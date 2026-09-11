@@ -1,8 +1,8 @@
-# Settlement
+# Swap Settlement
 
-## Swap Settlement
+Use [Pool.trading.abi.json](../abi/Pool.trading.abi.json) for the integration surface. Calls and approvals for a proxy deployment target the pool's proxy address.
 
-### Exact-Input ERC-20 Swap
+## Exact-Input ERC-20 Swap
 
 ```solidity
 struct ExactInputParams {
@@ -23,15 +23,19 @@ function swapExactIn(
 ) external returns (uint256 amountOut);
 ```
 
-Flow:
+Amounts use raw token units. Read `X()` and `Y()` to determine the pair and token order.
 
-1. Caller chooses the direct path or the Permit2 path
-2. The pool validates direction, deadline, freshness, and minimum output
-3. The pool transfers output tokens directly from contract custody
-4. Partner / treasury fee accounting is updated
-5. Reserves are synchronized
+1. The pool must be unpaused. It validates the token pair, deadline, price freshness, executable output, and `amountOutMinimum`.
+2. The pool pulls `amountIn` from `msg.sender`. The direct path requires ERC-20 allowance to the pool. The Permit2 path uses the caller as the permit owner and requires ERC-20 allowance to Permit2, a valid signature, and an unused nonce.
+3. Settlement applies the current swap's punishment to the traded direction's stored fee, subject to saturation. That punishment is already included in the current quote.
+4. The pool sends the net output to `recipient` from contract custody. There is no swap callback for deferred input payment.
+5. The output-token fee is split into partner and treasury accounting buckets. Active reserves are synchronized and `SwapExecuted` is emitted.
 
-### Native `X` Swap
+For Permit2, `permit.permitted.token` and `permit.permitted.amount` must exactly match `params.tokenIn` and `params.amountIn`. Both `params.deadline` and `permit.deadline` are checked against `block.timestamp`; equality is allowed and the two deadlines need not match. Permit2 is called at `0x000000000022D473030F116dDEE9F6B43aC78BA3`.
+
+A router calling the pool is the pool's `msg.sender`, including for input payment, whitelist treatment, and partner fee attribution. The caller therefore needs the input balance and applicable allowance or permit itself. Simulate quotes with that same caller address.
+
+## Native Input and Output
 
 ```solidity
 function swapExactInNative(
@@ -42,101 +46,14 @@ function swapExactInNative(
 ) external payable returns (uint256 amountOut);
 ```
 
-Use this only when `X() == address(0)`.
+Use this entrypoint when `X() == address(0)`, with `tokenOut == Y()` and the complete input in `msg.value`. To swap ERC-20 Y into native X, use either ERC-20 `swapExactIn` overload with `tokenOut == address(0)`. A contract receiving native output must accept an ETH transfer.
 
-## LP Deposit Settlement
+The ERC-20 overloads reject native input. A plain ETH transfer to the pool does not initiate a swap. Wrapped ETH is an ERC-20 and uses the ERC-20 entrypoints.
 
-```solidity
-struct DepositLiquidityParams {
-    address lp;
-    uint256 amountX;
-    uint256 amountY;
-    uint256 minUsedX;
-    uint256 minUsedY;
-    uint256 deadline;
-}
+## Fee Attribution and Active Reserves
 
-function requestDeposit(DepositLiquidityParams calldata params) external payable;
-function executeDeposit(address lp) external;
-```
+The fee is denominated in Y for X → Y and in X for Y → X. For a partner with an operator configured, its share is `floor(fee * partnerInfo(msg.sender).fee / BPS())`, where `BPS() == 1_000_000`; treasury receives the remainder. Configure both the partner operator and its fee before routing swaps. Partner attribution does not add a second fee to the quoted output.
 
-Flow:
+Read `getXReserve()` and `getYReserve()` for active swap inventory. Custody balances also contain accounting buckets excluded from trading, including partner and treasury fees. The gross output must fit the active output reserve before the fee is deducted.
 
-1. Pool must be paused
-2. Configured depositor escrows `amountX` / `amountY` into the pool
-3. Owner executes the request
-4. `executeDeposit(...)` values accepted amounts using the current price derived from the Q64.96 `anchorPrice`
-5. The position receives `principalWealth`
-6. A new lock tranche is appended
-
-Notes:
-
-- one-sided deposits are supported
-- `minUsedX` / `minUsedY` are enforced on execute
-- request time does not mint wealth
-
-## LP Withdrawal Settlement
-
-```solidity
-enum WithdrawalMode {
-    X,
-    Y,
-    Split
-}
-
-struct WithdrawalParams {
-    uint32 positionId;
-    address recipient;
-    WithdrawalMode mode;
-    uint256 minAmountOutX;
-    uint256 minAmountOutY;
-    uint256 deadline;
-}
-
-function requestWithdrawal(WithdrawalParams calldata params) external;
-function executeWithdrawal(uint32 positionId) external;
-```
-
-Flow:
-
-1. Pool must be paused
-2. Operator requests withdrawal
-3. APR accrual is settled and then frozen
-4. Owner executes later
-5. `executeWithdrawal(...)` computes the current penalty on still-locked wealth
-6. Net principal wealth and pending yield wealth are converted using the current price derived from the Q64.96 `anchorPrice`
-7. Principal is paid from active liquidity and the yield-funded component is debited from treasury buckets
-
-Settlement modes:
-
-- `X` — all settled wealth requested in `X`
-- `Y` — all settled wealth requested in `Y`
-- `Split` — half the settled wealth stays in `Y`, half is converted to `X`
-
-## Yield Claim Settlement
-
-```solidity
-struct ClaimFeesParams {
-    uint32 positionId;
-    WithdrawalMode mode;
-    uint256 minAmountOutX;
-    uint256 minAmountOutY;
-}
-
-function claimFees(ClaimFeesParams calldata params) external;
-```
-
-Flow:
-
-1. Operator calls `claimFees(...)`
-2. Fixed APR is settled into `pendingYieldWealth`
-3. The current price derived from the Q64.96 `anchorPrice` is used immediately
-4. Requested wealth is converted to `X`, `Y`, or `Split`
-5. Treasury inventory must already contain the requested token mix
-6. Tokens are transferred to `feeRecipient`
-
-Important:
-
-- `claimFees(...)` is not pause-gated
-- successful claims are subject to a fixed `12 hours` cooldown
-- the protocol does not auto-convert treasury `Y` into `X` to satisfy `X` claims
+The quote's `pNext` is the unchanged anchor. Successful swaps increase the relevant directional fee when punishment applies; they do not move the anchor. A failed swap reverts token movement and state changes together.

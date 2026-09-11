@@ -1,721 +1,101 @@
-# Dark Pools API - Integration Guide
+# Hosted REST API
 
-> **Contract version note:** this page documents the hosted REST API. Example pairs and payload values are illustrative and are not the authoritative on-chain deployment registry. For the BNB Smart Chain v0.4.0 Pool, use [`../mainnet/addresses.json`](../mainnet/addresses.json) and [`../abi/Pool.abi.json`](../abi/Pool.abi.json).
+A hosted instance has its own chain, configured pools and rollout schedule. Discover its pools through `/quote/config` and `/quote/pairs`; the [deployment registry](../mainnet/addresses.json) remains the contract address reference.
 
-## Table of Contents
+The existing hosted API base URL is `https://api-pmm.lunarbase.gg/api`, with Swagger at `/api/v1`. Confirm that the chosen host serves the intended chain before using it. Adding a Base pool to this repository does not configure a hosted instance.
 
-1. [Overview](#overview)
-2. [Base URL & Endpoints](#base-url--endpoints)
-3. [Authentication](#authentication)
-4. [Rate Limiting](#rate-limiting)
-5. [Response Format](#response-format)
-6. [Endpoints](#endpoints)
-7. [Error Handling](#error-handling)
-8. [Best Practices](#best-practices)
+## Routes and authentication
 
----
+Paths below are relative to `/api`.
 
-## Overview
+| Method | Path | Access | Purpose |
+| --- | --- | --- | --- |
+| GET | `/quote/config` | Public | Configured pool symbols/addresses and `actualCallers` |
+| GET | `/quote/pairs` | Public | Symbols and token X/Y metadata, including decimals |
+| GET | `/quote/permit2/nonce?signer=0x...` | Partner | Find an unused Permit2 bitmap nonce |
+| GET | `/quote/exact-in` | Partner | Calculate an exact-input quote |
+| POST | `/quote/exact-in/approve/calldata` | Partner | Encode the direct-allowance or native-input call |
+| POST | `/quote/exact-in/permit/calldata` | Partner | Encode an ERC-20 Permit2 call |
+| POST | `/quote/exact-in/calldata` | Partner | Combined route; permit fields select the Permit2 overload |
 
-Dark Pools API provides access to a Proprietary AMM (Automated Market Maker) for getting quotes and executing token swaps.
+Partner routes require an enabled, unexpired Partner-tier (or higher) key in `X-API-Key`. Public routes accept optional API keys. Rate limits are configurable; defaults are 20 requests/minute for public access and 500 for partners. Use `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` and, on HTTP 429, `Retry-After`.
 
-**Key Features:**
+## Quote request
 
-- RESTful API with JSON responses
-- Rate limiting by IP and API key
-- TypeScript type safety with TypeBox
-- OpenAPI/Swagger documentation
-- Real-time price updates
-- Permit2 integration for gasless approvals
-- BigInt support (all amounts returned as strings)
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `symbol` | optional string | A symbol returned by this host; specify it when a token pair is ambiguous |
+| `tokenIn`, `tokenOut` | address strings | Actual pool tokens; `address(0)` denotes native currency only in a native-token pool |
+| `amountIn` | decimal integer string | Raw input token units, using that token's decimals |
+| `slippageBps` | integer, 1–9999 | Minimum-output tolerance; denominator 10,000 |
 
----
+For Base ETH/USDC, native ETH has 18 decimals and USDC has 6: 1 ETH is `"1000000000000000000"`, while 1 USDC is `"1000000"`. WETH is a different address and is not an alias for native ETH in this pool.
 
-## Base URL & Endpoints
+The minimum is calculated with integer rounding:
 
-### Production
-
-```
-https://api-pmm.lunarbase.gg/api
+```text
+amountOutMinimum = floor(amountOut * (10000 - slippageBps) / 10000)
 ```
 
-### Swagger UI
+The API returns `ZERO_AMOUNT` if this result is zero. Slippage basis points are unrelated to the contract's Q24 directional fee representation.
 
-```
-https://api-pmm.lunarbase.gg/api/v1
-```
+## Calldata request
 
----
+All calldata routes accept the quote fields plus:
 
-## Authentication
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `recipient` | address string | Recipient of the output |
+| `deadline` | integer | Unix timestamp in seconds |
+| `permit2Nonce` | optional integer | Permit2 nonce; required on the permit route |
+| `permit2Signature` | optional hex string | 65-byte signature; required on the permit route |
 
-### Public Endpoints
+On the combined route, omit both permit fields for direct allowance/native input, or supply both for Permit2. The approve route does not accept permit fields. The permit route is intended for ERC-20 input. The backend selects the native entrypoint when `tokenIn` is `address(0)`.
 
-Public endpoints are accessible without an API key, but rate limited (100 req/min per IP).
+The response's `router` is the Pool address, and `callData` is encoded for its current swap entrypoints. Before submitting, verify the chain, pool, caller, token pair, minimum output and deadline. Direct ERC-20 input requires allowance to the Pool; Permit2 requires ERC-20 allowance to Permit2 and a signature whose spender is the Pool. The Permit2 owner is the immediate caller of the Pool. See [settlement](settlement.md).
 
-### Partner Endpoints (commented out in current version)
+Native input requires transaction `value = amountIn`; ERC-20 input requires `value = 0`. The response does not supply a transaction value field.
 
-Require API key in header:
+**Calldata deadline compatibility:** a hosted deployment may reject a valid Unix-second deadline with HTTP 400 (`deadline already expired`) because of a seconds/milliseconds mismatch. If this occurs, encode the swap directly with the [trading ABI](../abi/Pool.trading.abi.json). Keep the on-chain deadline in seconds; sending milliseconds would create an unintended, extremely long validity period.
 
-```
-X-API-Key: sk_partner_your_key_here
-```
+## Responses and errors
 
----
-
-## Rate Limiting
-
-All responses include rate limit headers:
-
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 87
-X-RateLimit-Reset: 1709638800
-```
-
-**Limits:**
-
-- Public (by IP): 100 requests/minute
-- Partner (with API key): 500 requests/minute
-
-**When limit exceeded:**
-
-```http
-HTTP/1.1 429 Too Many Requests
-Retry-After: 42
-
-{
-  "success": false,
-  "statusCode": 429,
-  "error": "Too Many Requests",
-  "message": "Rate limit exceeded",
-  "extra": {
-    "retryAfterMs": 42000
-  },
-  "timestamp": 1709638758123
-}
-```
-
----
-
-## Response Format
-
-API uses **two response formats** depending on the endpoint:
-
-### 1. Success Envelope (Health endpoints)
-
-Used for health checks and informational endpoints.
-
-**Success:**
+Quote routes return a reason envelope. Successful responses contain `symbol`, `tokenIn`, `tokenOut`, `amountIn`, `amountOut`, `amountOutMinimum`, `blockAge`, `router`, and optionally `callData`:
 
 ```json
-{
-	"success": true,
-	"data": {
-		// your data here
-	}
-}
+{"success":true,"reason":{"code":"OK"},"data":{}}
 ```
 
-**Error:**
+Here `{}` abbreviates the fields described above. Amounts are decimal strings, including the nonce returned by the nonce endpoint. Do not convert token amounts to JavaScript `Number`.
+
+Business errors return HTTP 200 with `success: false`:
 
 ```json
-{
-	"success": false,
-	"statusCode": 400,
-	"error": "Bad Request",
-	"message": "Invalid input data",
-	"extra": {
-		/* additional info */
-	},
-	"timestamp": 1709638758123
-}
+{"success":false,"reason":{"code":"STALE_PRICE","detail":"Price is stale","extra":{"blockAge":3}}}
 ```
 
-### 2. Reason Envelope (Quote endpoints)
+| Code | Meaning |
+| --- | --- |
+| `STALE_PRICE` | Cached operator update is at least two blocks old |
+| `SWAP_IMPOSSIBLE` | Pair/state errors caught by the quote handler, or outdated block data |
+| `PAUSED` | Cached pool state is paused |
+| `ZERO_AMOUNT` | Slippage-adjusted minimum is zero |
+| `UNKNOWN_ERROR` | Calculation or calldata encoding failed |
 
-Used for quote and swap endpoints. **Always returns HTTP 200**, check `success` field.
+Validation, authentication, rate limiting and server failures use HTTP errors (including 400, 403, 429 and 500), generally with `success`, `statusCode`, `error`, `message`, optional `extra`, and `timestamp`. Check HTTP status before the reason envelope; proxies may also return non-JSON errors.
 
-**Success:**
+Unknown or ambiguous pool lookup can return an HTTP error instead of a `SWAP_IMPOSSIBLE` envelope. Discover configured symbols first and still handle both error forms.
 
-```json
-{
-	"success": true,
-	"reason": {
-		"code": "OK"
-	},
-	"data": {
-		"tokenIn": "0x0000000000000000000000000000000000000000",
-		"tokenOut": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-		"amountIn": "1000000000000000000",
-		"amountOut": "2120099686",
-		"amountOutMinimum": "1908089717",
-		"blockAge": 0,
-		"router": "0xc9160c609cb928551a8dfa188a991f833424b0d3"
-	}
-}
-```
+## Quote parity boundaries
 
-**Business Logic Error (HTTP 200):**
+The hosted quote API has no caller field and calculates quotes with multiplier one. A non-whitelisted caller may receive less on-chain when `blacklistFeeMultiplier()` exceeds one. `actualCallers` is informational and does not make the API quote caller-aware.
 
-```json
-{
-	"success": false,
-	"reason": {
-		"code": "STALE_PRICE",
-		"detail": "Price is stale",
-		"extra": {
-			"blockAge": 5,
-			"priceBlock": 1000,
-			"currentBlock": 1005
-		}
-	}
-}
-```
+For execution, obtain an on-chain quote with `eth_call.from` equal to the immediate Pool caller, or build an off-chain snapshot with that caller's actual multiplier. An aggregator contract is the caller when it calls the Pool. Keep `amountOutMinimum` in the final transaction and simulate the complete call.
 
-**⚠️ Important:** Quote endpoints can also return HTTP 400/500 for validation errors and internal server errors! Always check both HTTP status AND `success` field.
+The API's `blockAge >= 2` rule is a separate cache policy from the Pool's configurable `blockDelay()`. A REST success is not proof of on-chain freshness, available allowance, fee-accounting capacity or transaction success. See [price discovery](price-discovery.md) and [off-chain integration](offchain-integration.md).
 
-**Validation Error (HTTP 400):**
+## Permit2 nonce handling
 
-```json
-{
-	"success": false,
-	"statusCode": 400,
-	"error": "Bad Request",
-	"message": "Invalid tokenIn address",
-	"extra": {
-		"tokenIn": "invalid"
-	},
-	"timestamp": 1709638758123
-}
-```
+Permit2 SignatureTransfer uses unordered bitmap nonces. The nonce endpoint scans for an unused bit; it does not reserve that nonce. Concurrent clients can receive the same nonce. Coordinate nonce reservations across pending signatures and recheck on-chain consumption; do not assume `nonce + 1` is unused.
 
-**Reason Codes (HTTP 200 responses):**
-
-- `OK` - Successful operation
-- `STALE_PRICE` - Price data is stale (blockAge >= 2)
-- `SWAP_IMPOSSIBLE` - Cannot execute swap (unknown token, same tokens, etc.)
-- `PAUSED` - PMM is paused
-- `ZERO_AMOUNT` - Zero amount after applying slippage
-- `UNKNOWN_ERROR` - Unknown error during calculation
-
----
-
-## Endpoints
-
-### Quote
-
-#### GET `/api/quote/pairs`
-
-Returns available trading pairs.
-
-**Response:**
-
-```json
-{
-	"success": true,
-	"reason": { "code": "OK" },
-	"data": [
-		{
-			"symbol": "ETH-USDC",
-			"tokens": {
-				"tokenX": {
-					"address": "0x0000000000000000000000000000000000000000",
-					"name": "Ether",
-					"symbol": "ETH",
-					"decimals": 18
-				},
-				"tokenY": {
-					"address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-					"name": "USD Coin",
-					"symbol": "USDC",
-					"decimals": 6
-				}
-			}
-		}
-	]
-}
-```
-
----
-
-#### GET `/api/quote/permit2/nonce?signer=0x...`
-
-Get current nonce for Permit2.
-
-**Query Parameters:**
-
-- `signer` (string, required): Ethereum address of the signer
-
-**Example:**
-
-```
-GET /api/quote/permit2/nonce?signer=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-```
-
-**Response:**
-
-```json
-{
-	"success": true,
-	"reason": { "code": "OK" },
-	"data": {
-		"signer": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-		"nonce": "1"
-	}
-}
-```
-
----
-
-#### GET `/api/quote/exact-in`
-
-Get quote for exact input amount.
-
-**Query Parameters:**
-
-- `tokenIn` (string, required): Input token address (use `0x0000000000000000000000000000000000000000` for native token)
-- `tokenOut` (string, required): Output token address
-- `amountIn` (string, required): Input amount in wei (e.g., "1000000000000000000" for 1 ETH)
-- `slippageBps` (integer, required): Slippage in basis points (50 = 0.5%, max 9999)
-
-**Example:**
-
-```
-GET /api/quote/exact-in?tokenIn=0x0000000000000000000000000000000000000000&tokenOut=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amountIn=1000000000000000000&slippageBps=50
-```
-
-**Response (Success):**
-
-```json
-{
-	"success": true,
-	"reason": { "code": "OK" },
-	"data": {
-		"tokenIn": "0x0000000000000000000000000000000000000000",
-		"tokenOut": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-		"amountIn": "1000000000000000000",
-		"amountOut": "2120099686",
-		"amountOutMinimum": "2109499671",
-		"blockAge": 0,
-		"router": "0xc9160c609cb928551a8dfa188a991f833424b0d3"
-	}
-}
-```
-
-**Response (Validation Error - HTTP 400):**
-
-```json
-{
-	"success": false,
-	"statusCode": 400,
-	"error": "Bad Request",
-	"message": "Invalid tokenIn address",
-	"extra": {
-		"tokenIn": "not-an-address"
-	},
-	"timestamp": 1709638758123
-}
-```
-
-**Response (Stale Price - HTTP 200):**
-
-```json
-{
-	"success": false,
-	"reason": {
-		"code": "STALE_PRICE",
-		"detail": "Price is stale",
-		"extra": {
-			"blockAge": 3,
-			"priceBlock": 1000,
-			"currentBlock": 1003
-		}
-	}
-}
-```
-
-**Response (PMM Paused - HTTP 200):**
-
-```json
-{
-	"success": false,
-	"reason": {
-		"code": "PAUSED",
-		"detail": "PMM is currently paused"
-	}
-}
-```
-
----
-
-#### POST `/api/quote/exact-in/calldata`
-
-Get calldata for swap execution.
-
-**Body Parameters:**
-
-```json
-{
-	"recipient": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-	"tokenIn": "0x0000000000000000000000000000000000000000",
-	"tokenOut": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-	"amountIn": "1000000000000000000",
-	"slippageBps": 50,
-	"deadline": 1709638800,
-	"permit2Nonce": 1, // Required for ERC20 tokenIn
-	"permit2Signature": "0x..." // Required for ERC20 tokenIn
-}
-```
-
-**⚠️ Important:** `permit2Nonce` and `permit2Signature` are **required only for ERC20 tokens**. For native token (ETH), these fields are optional and will be ignored.
-
-**Response:**
-
-```json
-{
-	"success": true,
-	"reason": { "code": "OK" },
-	"data": {
-		"tokenIn": "0x0000000000000000000000000000000000000000",
-		"tokenOut": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-		"amountIn": "1000000000000000000",
-		"amountOut": "2120099686",
-		"amountOutMinimum": "2109499671",
-		"blockAge": 0,
-		"router": "0xc9160c609cb928551a8dfa188a991f833424b0d3",
-		"callData": "0x3593564c000000000000000000000000..."
-	}
-}
-```
-
----
-
-## Error Handling
-
-### Two Types of Errors
-
-**1. HTTP Errors (400, 500)**
-For validation errors and server errors. Check HTTP status code.
-
-```json
-{
-	"success": false,
-	"statusCode": 400,
-	"error": "Bad Request",
-	"message": "Invalid tokenIn address",
-	"extra": { "tokenIn": "invalid" },
-	"timestamp": 1709638758123
-}
-```
-
-**2. Business Logic Errors (HTTP 200)**
-For application-level errors (stale price, paused, etc.). Always HTTP 200, check `success` field.
-
-```json
-{
-	"success": false,
-	"reason": {
-		"code": "STALE_PRICE",
-		"detail": "Price is stale",
-		"extra": { "blockAge": 3 }
-	}
-}
-```
-
-### Error Handling Flow
-
-```typescript
-const response = await fetch(url);
-const data = await response.json();
-
-// Check HTTP status first
-if (!response.ok) {
-	// HTTP error (400, 500, etc.)
-	throw new Error(`HTTP ${data.statusCode}: ${data.message}`);
-}
-
-// Then check success field
-if (!data.success) {
-	// Business logic error
-	const { code, detail } = data.reason;
-	throw new Error(`${code}: ${detail}`);
-}
-
-// Success - use data
-return data.data;
-```
-
----
-
-## Best Practices
-
-### 1. Error Handling
-
-```typescript
-// Always check both HTTP status AND success field
-const response = await fetch(url);
-const data = await response.json();
-
-if (!response.ok) {
-	// HTTP error (400, 500)
-	throw new Error(`HTTP ${data.statusCode}: ${data.message}`);
-}
-
-if (!data.success) {
-	// Business logic error (200 with success: false)
-	const { code, detail } = data.reason;
-	throw new Error(`${code}: ${detail}`);
-}
-
-// Now safe to use data.data
-```
-
-### 7. Permit2 Nonce Management
-
-**Don't** request nonce from API for every swap:
-
-```typescript
-❌ // Bad: API call for each swap
-for (const swap of swaps) {
-  const { nonce } = await getNonce(signer);
-  await executeSwap(..., nonce, ...);
-}
-```
-
-**Do** fetch once and increment locally:
-
-```typescript
-✅ // Good: Fetch once, increment locally
-let currentNonce = await getNonce(signer);
-
-for (const swap of swaps) {
-  const signature = await signPermit2(account, {
-    token: swap.tokenIn,
-    amount: swap.amountIn,
-    nonce: currentNonce.toString(),
-    deadline,
-  });
-
-  await executeSwap(..., currentNonce, signature);
-
-  currentNonce++; // Increment locally
-}
-```
-
-**Production approach with Redis:**
-
-```typescript
-import Redis from 'ioredis';
-
-class Permit2NonceManager {
-  private redis: Redis;
-  private cacheKey = (signer: string) => `permit2:nonce:${signer.toLowerCase()}`;
-
-  constructor(redis: Redis) {
-    this.redis = redis;
-  }
-
-  /**
-   * Get current nonce (from cache or API)
-   */
-  async getNonce(signer: string): Promise {
-    // Try cache first
-    const cached = await this.redis.get(this.cacheKey(signer));
-    if (cached !== null) {
-      return parseInt(cached);
-    }
-
-    // Fetch from API
-    const response = await fetch(
-      `${API_BASE}/quote/permit2/nonce?signer=${signer}`
-    );
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error('Failed to get nonce');
-    }
-
-    const nonce = parseInt(data.data.nonce);
-
-    // Cache with 1 hour TTL
-    await this.redis.setex(this.cacheKey(signer), 3600, nonce.toString());
-
-    return nonce;
-  }
-
-  /**
-   * Get next nonce and increment in cache
-   */
-  async getNextNonce(signer: string): Promise {
-    const key = this.cacheKey(signer);
-
-    // Try atomic increment
-    const nonce = await this.redis.incr(key);
-
-    // If first time (nonce === 1), fetch from API
-    if (nonce === 1) {
-      const actualNonce = await this.getNonce(signer);
-      await this.redis.setex(key, 3600, actualNonce.toString());
-      return actualNonce;
-    }
-
-    // Refresh TTL
-    await this.redis.expire(key, 3600);
-
-    return nonce - 1; // Return value before increment
-  }
-
-  /**
-   * Reset cache (use when nonce mismatch detected)
-   */
-  async resetNonce(signer: string): Promise {
-    await this.redis.del(this.cacheKey(signer));
-  }
-}
-
-// Usage
-const nonceManager = new Permit2NonceManager(redis);
-
-async function executeMultipleSwaps(swaps: Swap[]) {
-  for (const swap of swaps) {
-    try {
-      const nonce = await nonceManager.getNextNonce(signer);
-
-      const signature = await signPermit2Transfer(
-        account,
-        { ...swap, nonce: nonce.toString(), deadline },
-        chainId
-      );
-
-      await executeSwap(..., nonce, signature);
-
-    } catch (error) {
-      if (error.message.includes('nonce')) {
-        // Reset cache on nonce mismatch
-        await nonceManager.resetNonce(signer);
-        throw error;
-      }
-    }
-  }
-}
-```
-
-**Why this matters:**
-
-- Reduces API calls: 1 instead of N for N swaps
-- Faster execution: no network roundtrip
-- Rate limit friendly: stays within 100 req/min easily
-- Handles concurrent swaps correctly with Redis atomic operations
-
-**Important:** Always handle nonce mismatch errors by resetting cache and refetching from API.
-
-````
-
-### 3. Slippage
-
-```typescript
-const SLIPPAGE = {
-  LOW: 10,      // 0.1% - for stable pairs
-  MEDIUM: 50,   // 0.5% - standard
-  HIGH: 100,    // 1.0% - for volatile pairs
-  MAX: 500,     // 5.0% - maximum for large trades
-};
-````
-
-### 4. Deadline
-
-```typescript
-// Always use deadline for MEV protection
-const DEADLINE_OFFSET = 5 * 60; // 5 minutes
-
-function getDeadline(): number {
-	return Math.floor(Date.now() / 1000) + DEADLINE_OFFSET;
-}
-```
-
-### 5. BigInt Handling
-
-```typescript
-// API returns amounts as strings to support BigInt
-const amountOut = BigInt(quote.amountOut); // ✅
-const amountOut = parseInt(quote.amountOut); // ❌ precision loss
-
-// Format for display
-function formatAmount(amount: string, decimals: number): string {
-	const value = BigInt(amount);
-	const divisor = BigInt(10 ** decimals);
-	return (Number(value) / Number(divisor)).toFixed(decimals);
-}
-```
-
-### 6. Rate Limiting with Retry
-
-```typescript
-async function fetchWithRetry(url: string, maxRetries = 3) {
-	for (let i = 0; i < maxRetries; i++) {
-		const response = await fetch(url);
-
-		if (response.status === 429) {
-			const retryAfter = parseInt(response.headers.get("Retry-After") || "60");
-			await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
-			continue;
-		}
-
-		return response;
-	}
-
-	throw new Error("Max retries exceeded");
-}
-```
-
-**Rate Limit Increase:**
-Contact us for Partner API key with higher limits.
-
----
-
-## Changelog
-
-### v0.1.0 (Current)
-
-gInt(10 \*\* decimals);
-return (Number(value) / Number(divisor)).toFixed(decimals);
-}
-
-````
-
-### 6. Rate Limiting with Retry
-
-```typescript
-async function fetchWithRetry(url: string, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    const response = await fetch(url);
-
-    if (response.status === 429) {
-      const retryAfter = parseInt(response.headers.get('Retry-After') || '60');
-      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-      continue;
-    }
-
-    return response;
-  }
-
-  throw new Error('Max retries exceeded');
-}
-````
-
-**Rate Limit Increase:**
-Contact us for Partner API key with higher limits.
-
----
-
-## Changelog
-
-### v0.1.0 (Current)
-
-- ✅ Quote exact-in endpoint
-- ✅ Swap calldata generation
-- ✅ Permit2 nonce lookup
-- ✅ Reason envelope for business logic errors
-- ✅ Rate limiting with headers
-- ✅ BigInt support (all amounts as strings)
+The nonce request accepts a JSON integer although the response uses a decimal string. JavaScript clients must reject nonces above `Number.MAX_SAFE_INTEGER` before converting for this REST route; a direct contract integration can use the full uint256 nonce. Do not reuse a nonce merely because the swap has not yet confirmed.

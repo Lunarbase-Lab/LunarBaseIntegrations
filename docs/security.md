@@ -1,56 +1,33 @@
-# Security
+# Trading Integration Constraints
 
-## Main Protections
+Use the [trading ABI](../abi/Pool.trading.abi.json) to encode calls and decode the relevant events and errors.
 
-- immutable operator set for `upd(...)`
-- owner-controlled pause / unpause
-- staleness guard via `blockDelay`
-- `ReentrancyGuardTransient` on state-mutating external flows
-- Solidity `0.8.31` overflow / underflow checks
-- minimum-output and deadline checks on swaps, withdrawals, and claims
-- paused-only LP request/execute flow for deposits and withdrawals
+## Quote and Execution Context
 
-## Access Model
+Freshness is the strict condition:
 
-- `owner` controls pause, fee configuration, treasury configuration, and LP config
-- immutable `operator1..5` control price and fee updates
-- LP `depositor` creates deposits
-- LP `operator` creates withdrawals and claims yield
-- `feeRecipient` receives `claimFees(...)` payouts
-- partner fee withdrawals require the configured partner operator
-- treasury fee withdrawals require the treasury address
+```text
+block.number < latestUpdateBlock + blockDelay
+```
 
-## Staleness Model
+At the boundary the state is stale. Swap execution reverts with `StalePrice()`; directional quotes return `(0, anchorPrice, 0)` for stale state. Read `blockDelay()` rather than assuming a fixed freshness window.
 
-Swaps and valuation depend on fresh operator state:
+Quotes do not check pause state, token allowance, Permit2 validity, recipient transfer behavior, or caller balance. They depend on the immediate caller's whitelist status, current directional fees, punishment, and active reserves. Use the intended pool caller as the simulation's `from` address, check `paused()` and `isFresh()`, and set `amountOutMinimum` and a deadline for execution.
 
-- if operators stop updating the Q64.96 `anchorPrice`, swaps revert on `StalePrice()`
-- read-only quotes return zero output under stale state
-- LP deposit valuation, withdrawal settlement, and yield claims all use the current anchor price through `ValuationLib`
+A successful quote does not reserve an execution price. Other swaps can increase the relevant directional fee; authorized state updates can change the anchor and fees before inclusion. The returned `pNext` stays equal to the anchor.
 
-## LP-Specific Safety Model
+## Token Movement
 
-- deposit requests escrow tokens before execution
-- wealth is minted only on `executeDeposit(...)`
-- `requestWithdrawal(...)` stops further APR accrual
-- withdrawal penalty is computed on execution from still-locked wealth tranches
-- withdrawal and claim payout modes are constrained by `minAmountOutX` / `minAmountOutY`
+Swap entrypoints use `ReentrancyGuardTransient` and require an unpaused pool. The execution chain must support EIP-1153 transient storage. ERC-20 movement uses SafeERC20 or Permit2; native output must succeed or the transaction reverts.
 
-## Important Economic Design Choices
+The pool prices the requested input and then pulls that amount from `msg.sender`. Current transfer helpers do not compare the received balance delta with the requested amount. Integrations must not assume support for fee-on-transfer or rebasing tokens. Native-output recipients must accept ETH.
 
-These are not bugs; they are current intended semantics:
+The input is paid before output is sent. No swap callback accepts deferred payment. When a router calls the pool, the router supplies the input and receives its own whitelist and partner-attribution treatment, even if a different user initiated the route.
 
-- treasury inventory is tracked in token-denominated buckets and excluded from live swap reserves
-- treasury-funded LP claims and yield payouts debit treasury buckets before paying out
-- pending withdrawals freeze APR accrual but do not automatically remove inventory from swap-side reserves
-- `claimFees(...)` and withdrawal-yield funding require the treasury bucket to already hold the requested token mix
-- the protocol does not auto-swap treasury `Y` into `X`
-- successful `claimFees(...)` calls are limited by a fixed `12 hours` cooldown
+## State and Accounting
 
-## Known Limitations
+Use `X()` / `Y()` and the actual token decimals for raw-unit conversions. Native X is `address(0)` and uses 18 decimals. Read active reserves with `getXReserve()` / `getYReserve()` instead of treating the pool's custody balances as fully available liquidity.
 
-- operators must keep state fresh under `blockDelay`
-- `maxPunishmentX24` and the non-whitelisted fee multiplier are owner-controlled economic parameters that integrators should read on-chain
-- deposit and withdrawal execution are owner-mediated flows
-- helper scripts still use some legacy `CurvePMM` naming and one funding script still assumes two-sided bootstrap even though the contract supports one-sided deposits
-- no external audit is documented in this repository
+Swap fees and punishment use denominator `2^24`, with `uint24.max` treated as the full-fee sentinel. Partner fee shares instead use `BPS() == 1_000_000`. These scales are not interchangeable. Punishment and the non-whitelisted caller multiplier can reduce output to zero even when token inventory is available.
+
+Pool configuration and implementation upgrades can change future execution behavior. Integrations should re-read trading configuration and verify the active implementation when deployment metadata changes. Invalidate cached quotes on pricing, punishment, whitelist, multiplier, reserve, or pause-state changes; freshness also changes as blocks advance without a new state update.

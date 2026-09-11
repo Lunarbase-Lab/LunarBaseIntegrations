@@ -1,68 +1,49 @@
-# Overview
+# Trading Overview
 
-## Summary
+LunarBase is a proactive market maker whose operators publish an anchor price and two directional fees. The Pool converts exact-input amounts at the squared anchor, then deducts a fee that includes the current trade's reserve-relative punishment. Successful swaps change stored fees and active reserves; the anchor stays fixed until an operator update.
 
-`Pool` v0.4.0 is an operator-updated proactive market maker that combines:
+## Deployments
 
-- fixed-anchor swap conversion
-- direction-specific operator fees
-- linear amount-dependent punishment
-- embedded LP position management
-- treasury and partner-fee accounting
+The integration covers Base native ETH/USDC (`8453`) and BNB Smart Chain native BNB/USDT (`56`). Use the proxy and token addresses in the [registry](../mainnet/addresses.json), with the [trading ABI](../abi/Pool.trading.abi.json).
 
-The current v0.4.0 deployment supports the native-BNB / USDT pair on BNB Smart Chain. Price and direction-specific fees are refreshed on-chain by immutable operators through `upd(...)`.
+Native currency is represented by `X() == address(0)`. On Base, Y is USDC with 6 decimals; on BNB Chain, Y is USDT with 18. Token order and decimals determine the raw-unit price, the chosen directional fee, and the units of output and fees.
 
-## Current Runtime
+## Price and state
 
-| Field | Value |
-| ----- | ----- |
-| Network | BNB Smart Chain (`chainId = 56`) |
-| Pair | BNB / USDT |
-| Pool proxy | `0x00007904d186680c709519e71f4dc3e2df8f1b99` |
-| Current implementation | `0x385E90e2F2Bf13DfE55AF5F7F1da43D72373f7E0` |
-| Token X | native BNB sentinel (`address(0)`) |
-| Token Y | `0x55d398326f99059fF775485246999027B3197955` |
+| Value | Meaning |
+| --- | --- |
+| `state().anchorPrice` | `uint160` Q64.96 square-root price in raw Y/X units |
+| `state().feeBidX24` | Stored X -> Y fee including accumulated punishment |
+| `state().feeAskX24` | Stored Y -> X fee including accumulated punishment |
+| `state().latestUpdateBlock` | Block of the latest operator pricing update |
+| `getXReserve()`, `getYReserve()` | Cached active reserves used by the quote model |
+| `maxPunishmentX24()` | Maximum per-trade punishment factor |
+| `blockDelay()` | Strict freshness window in blocks |
+| `isWhitelisted(caller)`, `blacklistFeeMultiplier()` | Fee multiplier for the immediate execution caller |
 
-Integrators call the proxy using [`../abi/Pool.abi.json`](../abi/Pool.abi.json). The ABI is the Pool application interface and deliberately excludes UUPS administration methods.
+Active reserves differ from raw contract balances because some balances belong to escrow or fee buckets. Read the reserve getters for quotes. Use one block for the entire snapshot; combining values from different blocks can produce a state that never existed.
 
-## Core Ideas
+## Quote to settlement
 
-- the anchor is a `uint160` Q64.96 sqrt-price, not the legacy `uint80` Q32.48 value
-- operator updates publish `anchorPrice`, `feeAskX24`, and `feeBidX24`
-- `feeAskX24` is used for Y -> X and `feeBidX24` is used for X -> Y
-- the stored directional fee is the operator-published fee plus any punishment accumulated by successful swaps since the latest update
-- each quote includes the current swap's linear amount-dependent punishment immediately
-- the pool only serves live flow while operator state is fresh under `blockDelay`
-- LP principal is tracked as normalized `principalWealth`, not transferable shares
-- fixed APR yield accrues on LP wealth and is paid from treasury buckets
-- LP withdrawal and claim payouts can be requested in `X`, `Y`, or `Split`
-
-## Runtime Architecture
-
-```text
-Operators ──► Pool.upd(...)
-Users     ──► Pool.quoteExactIn / quoteXToY / quoteYToX
-Users     ──► Pool.swapExactIn / swapExactInNative
-LPs       ──► Pool.requestDeposit / requestWithdrawal / claimFees
-Owner     ──► Pool.executeDeposit / executeWithdrawal / pause / admin controls
+```mermaid
+flowchart LR
+    Operator[Operator update] --> State[Anchor and directional fees]
+    State --> Quote[Caller-specific quote]
+    Reserves[Active reserves] --> Quote
+    Quote --> Limits[Minimum output and deadline]
+    Limits --> Swap[Pool proxy swap]
+    Swap --> State
+    Swap --> Reserves
 ```
 
-The Pool owns price state, reserves, swaps, LP position state, and fee accounting. The production address is an ERC1967 proxy, while the public integration surface is the Pool ABI.
+`quoteXToY`, `quoteYToX` and `quoteExactIn` are read-only alternatives. They include immediate punishment but do not commit it. The first two also return the output-token fee and unchanged anchor. See [price discovery](price-discovery.md) for rounding and zero-output cases.
 
-## Why Wealth-Based LP Accounting
+Native input uses `swapExactInNative` with `msg.value`. ERC-20 input uses a `swapExactIn` overload with direct Pool allowance or Permit2. USDC -> ETH on Base is an ERC-20-input swap with native output. The Pool pulls input before sending output; there is no deferred-payment swap callback. See [settlement](settlement.md).
 
-The LP system tracks normalized wealth instead of token-principal shares:
+## What makes a quote executable
 
-- deposit requests escrow raw token amounts
-- `executeDeposit(...)` values accepted amounts using the current price derived from the Q64.96 anchor
-- the position is credited in normalized Y-denominated wealth units
+Swaps require unpaused, fresh state and a nonzero output. Freshness is strict: a block equal to `latestUpdateBlock + blockDelay` is already stale. A swap also checks deadline, minimum output, token transfers and numeric/accounting limits. Public quote views do not enforce pause state or every execution condition.
 
-That model supports one-sided liquidity provision, a common numeraire for fixed-APR accrual, and settlement into `X`, `Y`, or `Split`.
+Whitelist and partner attribution use the address calling the Pool. If an aggregator calls it, quote for the aggregator address. Changing the output recipient does not change that fee policy.
 
-## Important Operational Behavior
-
-- swaps run only while the pool is unpaused
-- deposit and withdrawal request/execute flows require the pool to be paused
-- `claimFees(...)` is not pause-gated
-- pending withdrawal stops APR accrual but does not reserve liquidity out of the pool
-- treasury-funded LP payouts debit treasury buckets before paying
+After a successful swap, refresh both directional projections: the traded fee changes and the new reserves affect punishment in both directions. After an operator update, use the newly published anchor and directional fees. Reverted transactions commit neither reserve nor fee changes. [Off-chain integration](offchain-integration.md) explains coherent caches and sequential simulations.

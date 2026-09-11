@@ -1,143 +1,68 @@
-# Errors and Events
+# Trading Events and Errors
 
-This page summarizes the main externally visible events and custom errors across the current `Pool` runtime.
+Use [Pool.trading.abi.json](../abi/Pool.trading.abi.json) for quote, swap, and trading-state calls. It includes the relevant events and errors, including swap errors propagated through linked libraries.
 
-## Pool Events
+The full [Pool.abi.json](../abi/Pool.abi.json) remains available for compatibility.
+
+## Swap Events
 
 ```solidity
 event SwapExecuted(address recipient, bool xToY, uint256 dx, uint256 dy, uint256 fee);
-event StateUpdated(uint160 anchorPrice, uint24 feeAskX24, uint24 feeBidX24);
-event BlockDelaySet(uint48 blockDelay);
-event MaxPunishmentX24Set(uint24 maxPunishmentX24);
 event PunishmentApplied(
     bool indexed xToY,
     uint24 punishmentX24,
     uint24 feeAskX24,
     uint24 feeBidX24
 );
-event WhitelistSet(address indexed account, bool whitelisted);
-event BlacklistFeeMultiplierSet(uint256 multiplier);
+event PartnerFeeTaken(address indexed router, uint256 partnerFeeX, uint256 partnerFeeY);
 event Sync(uint128 reserveX, uint128 reserveY);
 ```
 
-What they mean:
+- `SwapExecuted`: `dx` always denotes the X amount and `dy` the Y amount. X → Y logs `(inputX, outputY)`; Y → X logs `(outputX, inputY)`. The fee is in the output token. None of the fields are indexed.
+- `PunishmentApplied`: X → Y increases the bid fee; Y → X increases the ask fee. `punishmentX24` is the actual saturated increment, and the last two fields are the absolute stored fees after applying it. The caller multiplier affects the token fee, not this stored increment. No event is emitted if the stored fee does not increase.
+- `PartnerFeeTaken`: a swap attributed a nonzero fee share to its immediate caller. `router` is that caller, not necessarily the end user.
+- `Sync`: cached active reserves were refreshed after accounting deductions. Event fields are `uint128`; the reserve getters return `uint112`.
 
-- `SwapExecuted` - exact-input swap completed
-- `StateUpdated` - operator wrote a new Q64.96 `anchorPrice` plus direction-specific `feeAskX24` / `feeBidX24`
-- `BlockDelaySet` - owner changed staleness window
-- `MaxPunishmentX24Set` - owner changed the maximum linear amount-dependent punishment
-- `PunishmentApplied` - a successful swap increased one stored directional fee; `xToY` is the only indexed field, `punishmentX24` is the applied increment, and the final two fields are the absolute post-swap fees
-- `WhitelistSet` - owner changed whether an account pays the base fee or the blacklist multiplier
-- `BlacklistFeeMultiplierSet` - owner changed the extra fee multiplier for non-whitelisted swappers
-- `Sync` - cached reserves were refreshed from balances
+In an ordinary successful swap, events occur as `PunishmentApplied` when applicable, `PartnerFeeTaken` when applicable, `Sync`, then `SwapExecuted`. Tokens may emit their own transfer logs between these events. For proxy deployments, pool runtime events are emitted from the proxy address.
 
-`StateUpdated` retains three fields in v0.4.0, but its first field is `uint160` rather than the legacy `uint80`. `maxPunishmentX24` remains a separate getter and is not part of the `state()` return tuple.
-
-## Position Manager Events
+## Quote Cache Invalidation Events
 
 ```solidity
-event DepositRequested(address indexed pool, address indexed lp, uint256 amountX, uint256 amountY);
-event DepositExecuted(address indexed pool, address indexed lp, uint32 positionId, uint256 usedX, uint256 usedY, uint256 wealthMinted);
-event WithdrawalRequested(address indexed pool, uint48 indexed positionId, address operator, address recipient, WithdrawalMode mode);
-event WithdrawalExecuted(
-    address indexed pool,
-    uint48 indexed positionId,
-    address indexed recipient,
-    WithdrawalMode mode,
-    uint256 amountX,
-    uint256 amountY,
-    uint256 settlePriceWad
-);
-event FeesClaimed(
-    address indexed pool,
-    uint48 indexed positionId,
-    address indexed feeRecipient,
-    WithdrawalMode mode,
-    uint256 amountX,
-    uint256 amountY,
-    uint256 settlePriceWad
-);
-event DepositRequestCancelled(address indexed pool, address indexed lp, address indexed canceller);
-event WithdrawalRequestCancelled(address indexed pool, uint48 indexed positionId, address indexed canceller);
-event LpConfigUpdated(
-    address indexed pool,
-    address indexed lp,
-    address depositor,
-    address feeRecipient,
-    address operator,
-    uint32 yieldRate,
-    uint32 penaltyBps,
-    uint32 lockDuration
-);
-event ClaimCooldownSet(uint32 previousClaimCooldown, uint32 currentClaimCooldown);
+event StateUpdated(uint160 anchorPrice, uint24 feeAskX24, uint24 feeBidX24);
+event MaxPunishmentX24Set(uint24 maxPunishmentX24);
+event BlockDelaySet(uint48 blockDelay);
+event WhitelistSet(address indexed account, bool whitelisted);
+event BlacklistFeeMultiplierSet(uint256 multiplier);
+event Paused(address account);
+event Unpaused(address account);
 ```
 
-What they mean:
+- `StateUpdated` replaces the anchor and directional fees. The update's block number supplies `latestUpdateBlock`; the event retains three fields even though the update entrypoint also accepts a deadline.
+- `MaxPunishmentX24Set` changes amount-dependent fee punishment, so cached quotes must be recomputed.
+- `BlockDelaySet` changes the freshness boundary.
+- `WhitelistSet` changes fee treatment for the indexed pool caller; `BlacklistFeeMultiplierSet` changes fee treatment for every non-whitelisted caller.
+- `Paused` and `Unpaused` change whether swaps can execute. Quotes themselves do not check the pause state.
 
-- `DepositExecuted` reports raw token usage plus minted wealth
-- `WithdrawalExecuted` reports final token payout plus settlement price
-- `FeesClaimed` reports fixed APR yield claim payout plus settlement price
-- `ClaimCooldownSet` reports an owner update to the LP claim cooldown
+The trading ABI includes these events for cache maintenance while excluding state-update and administration entrypoints. Read `state()` and the other trading-state getters at a consistent block to initialize or refresh the cache. Also process `PunishmentApplied` and `Sync`; freshness can expire on a later block even without any event.
 
-## Fee Manager Events
+## Swap Errors
 
-```solidity
-event PartnerFeeSet(address indexed router, uint32 fee);
-event PartnerOperatorSet(address indexed router, address indexed operator);
-event PartnerFeeTaken(address indexed router, uint256 partnerFeeX, uint256 partnerFeeY);
-event PartnerFeesWithdrawn(address indexed router, address indexed operator, uint256 amountX, uint256 amountY);
-event TreasurySet(address indexed treasury);
-event WithdrawCooldownSet(uint32 previousWithdrawCooldown, uint32 currentWithdrawCooldown);
-event TreasuryFeesWithdrawn(address indexed treasury, uint256 amountX, uint256 amountY);
-```
+| Error | Meaning |
+| --- | --- |
+| `StalePrice()` | Operator state is stale for execution |
+| `SwapImpossible()` | Quote output is zero under current reserves, price, or fees |
+| `DeadlineExpired(uint256 deadline)` | Swap or Permit2 deadline has passed |
+| `InsufficientOutput(uint256 amountOut,uint256 amountOutMinimum)` | Output is below the requested minimum |
+| `InvalidToken(address token)` | Token is not valid for the requested pair or entrypoint |
+| `PermitMismatch()` | Permit2 token or amount differs from the swap request |
+| `NativeNotSupported()` | Native-input entrypoint was used on a pool whose X token is ERC-20 |
+| `NoNativeSent()` | Native input does not match the amount expected by the transfer helper |
+| `NativeSendFailed(bytes data)` | Recipient rejected the native-token payout; includes returned revert data |
+| `SafeERC20FailedOperation(address token)` | ERC-20 operation reported failure |
+| `SafeCastOverflowedUintDowncast(uint8 bits,uint256 value)` | Accounting or reserve value does not fit its storage width |
+| `EnforcedPause()` | A swap was attempted while paused |
+| `ReentrancyGuardReentrantCall()` | A guarded entrypoint was reentered |
 
-## Main Pool Errors
+Permit2, token contracts, and checked arithmetic can return additional revert data. Failed transfers are not guaranteed to use a pool-specific error.
 
-| Error                                  | Meaning                                                    |
-| -------------------------------------- | ---------------------------------------------------------- |
-| `UnauthorisedAccess(address)`          | Caller is not one of the immutable operators               |
-| `InvalidParams()`                      | Constructor or admin parameters are invalid                |
-| `StalePrice()`                         | Operator state is stale for execution                      |
-| `SwapImpossible()`                     | Current reserves / state cannot support the requested swap |
-| `InputAmountMismatch(uint256,uint256)` | Observed input transfer differs from expected amount       |
-| `DeadlineExpired(uint256)`             | Swap deadline has passed                                   |
-| `InsufficientOutput(uint256,uint256)`  | Swap output is below `amountOutMinimum`                    |
-| `InvalidToken(address)`                | Token is not valid for the chosen direction                |
-| `PermitMismatch()`                     | Permit2 data does not match the swap request               |
-| `NativeNotSupported()`                 | Native flow is invalid for the current pair                |
-
-## Main Position Manager Errors
-
-| Error                        | Meaning                                                              |
-| ---------------------------- | -------------------------------------------------------------------- |
-| `PM__PoolNotPaused()`        | LP request/execute flow requires a paused pool                       |
-| `PM__InvalidBps()`           | Yield or penalty basis points are out of range                       |
-| `PM__InvalidAddress()`       | Zero or invalid address in LP flow                                   |
-| `PM__ZeroAmount()`           | Amounts or resulting wealth are zero                                 |
-| `PM__NoPrincipal()`          | Position has no principal left                                       |
-| `PM__InvalidRequestStatus()` | Request is not in the expected lifecycle state                       |
-| `PM__NotAuthorized()`        | Caller is not the configured depositor/operator/owner for the action |
-| `PM__NoPendingFees()`        | No claimable fixed APR yield is available                            |
-| `PM__DeadlineExpired()`      | Deposit or withdrawal request deadline passed                        |
-| `PM__MinUsedNotMet()`        | Deposit execution did not satisfy `minUsedX` / `minUsedY`            |
-| `PM__MinAmountOutNotMet()`   | Withdrawal or claim did not satisfy requested minimum outputs        |
-| `PM__LpNotConfigured()`      | LP config does not exist                                             |
-| `PM__NoPosition()`           | Position id does not exist                                           |
-| `PM__ClaimCooldown()`        | Fixed APR yield claim cooldown is still active                       |
-| `PM__RequestExists()`        | Another pending request already exists                               |
-| `PM__TreasuryUnderfunded()`  | Treasury bucket cannot fund requested yield payout mix               |
-| `PM__PendingWithdrawal()`    | Active position already has a pending withdrawal                     |
-
-## Main Fee Manager Errors
-
-| Error                                             | Meaning                                           |
-| ------------------------------------------------- | ------------------------------------------------- |
-| `FeeManager__ZeroAddress()`                       | Required address is zero                          |
-| `FeeManager__NoFees()`                            | Requested fee bucket is empty                     |
-| `FeeManager__InvalidRouter()`                     | Invalid partner router address                    |
-| `FeeManager__InvalidOperator()`                   | Invalid partner operator address                  |
-| `FeeManager__InvalidFee()`                        | Partner fee is out of range                       |
-| `FeeManager__NotPartnerOperator(address,address)` | Caller is not the configured partner operator     |
-| `FeeManager__PartnerWithdrawCooldown(address)`    | Partner cooldown has not elapsed                  |
-| `FeeManager__NotTreasury()`                       | Caller is not the treasury address                |
-| `InvalidWithdrawCooldown(uint32)`                 | Configured partner withdrawal cooldown is invalid |
+The Pool does not compare the received input balance delta with the quoted amount. Do not assume support for fee-on-transfer or rebasing tokens.

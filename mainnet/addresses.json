@@ -1,17 +1,36 @@
 {
-  "version": "0.4.0",
-  "abi": "../abi/Pool.abi.json",
+  "version": "0.4.1",
+  "abi": "../abi/Pool.trading.abi.json",
   "networks": {
+    "Base": {
+      "chainId": 8453,
+      "pools": {
+        "ETH/USDC": {
+          "proxy": "0x0000eFC4ec03a7c47D3a38A9Be7Ff1d52dD01b99",
+          "implementation": "0x4e87177c1084Fc322a44105654F05bDE83D4d7E2",
+          "tokenX": "0x0000000000000000000000000000000000000000",
+          "tokenY": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "decimalsX": 18,
+          "decimalsY": 6
+        }
+      }
+    },
     "BNB Smart Chain": {
       "chainId": 56,
       "pools": {
         "BNB/USDT": {
           "proxy": "0x00007904d186680C709519e71f4Dc3e2DF8f1b99",
-          "implementation": "0x385E90e2F2Bf13DfE55AF5F7F1da43D72373f7E0",
+          "implementation": "0xef700199E3E56333b92baf0BA12594DfA9A8e656",
           "tokenX": "0x0000000000000000000000000000000000000000",
-          "tokenY": "0x55d398326f99059fF775485246999027B3197955"
+          "tokenY": "0x55d398326f99059fF775485246999027B3197955",
+          "decimalsX": 18,
+          "decimalsY": 18
         }
       }
     }
-  }
+  },
+  "math": {
+    "version": "0.4.1"
+  },
+  "fullAbi": "../abi/Pool.abi.json"
 }

@@ -1569,6 +1569,11 @@
         "name": "feeBidX24_",
         "type": "uint24",
         "internalType": "uint24"
+      },
+      {
+        "name": "pushDeadline",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -2393,6 +2398,17 @@
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "DeadlineExpired",
+    "inputs": [
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
